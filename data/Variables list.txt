@@ -1,0 +1,132 @@
+
+Contains data from since£_ with control£ 230215.dta
+  obs:           537                          
+ vars:           118                          25 Feb 2015 17:47
+--------------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+--------------------------------------------------------------------------------
+randomistaion~o int     %10.0g                randomistaion_no
+rand_group      byte    %10.0g                rand_group
+screening       str8    %9s                   screening
+randomisation   int     %10.0g                randomisation
+check           str20   %20s                  check
+group           float   %10.0g                group
+site            str30   %30s                  site
+site_code       int     %10.0g                site_code
+event_name      str8    %9s                   event_name
+event_date      byte    %10.0g                event_date
+form_name       str15   %15s                  form_name
+since_visit_g~l byte    %10.0g                since_visit_gp_total
+unit13          byte    %10.0g                unit13
+since_visit_g~t byte    %10.0g                since_visit_gp_weight
+since_visit_g~y byte    %10.0g                since_visit_gp_obesity
+since_visit_g~r byte    %10.0g                since_visit_gp_another
+since_gp_home~l byte    %10.0g                since_gp_home_total
+unit14          int     %10.0g                unit14
+since_gp_home~t byte    %10.0g                since_gp_home_weight
+since_gp_home~y byte    %10.0g                since_gp_home_obesity
+since_gp_home~r byte    %10.0g                since_gp_home_another
+since_phone_g~l byte    %10.0g                since_phone_gp_total
+unit15          byte    %10.0g                unit15
+since_phone_g~t byte    %10.0g                since_phone_gp_weight
+since_phone_g~y byte    %10.0g                since_phone_gp_obesity
+since_phone_g~r byte    %10.0g                since_phone_gp_another
+since_visit_n~l byte    %10.0g                since_visit_nurse_total
+unit16          byte    %10.0g                unit16
+since_visit_n~t byte    %10.0g                since_visit_nurse_weight
+since_visit_n~y byte    %10.0g                since_visit_nurse_obesity
+since_visit_n~r byte    %10.0g                since_visit_nurse_another
+since_nurse_h~l byte    %10.0g                since_nurse_home_total
+unit17          byte    %10.0g                unit17
+since_nurse_h~t byte    %10.0g                since_nurse_home_weight
+since_nurse_h~y byte    %10.0g                since_nurse_home_obesity
+since_nurse_h~r byte    %10.0g                since_nurse_home_another
+since_phone_n~l byte    %10.0g                since_phone_nurse_total
+unit18          double  %10.0g                unit18
+since_phone_n~t byte    %10.0g                since_phone_nurse_weight
+since_phone_n~y byte    %10.0g                since_phone_nurse_obesity
+since_phone_n~r byte    %10.0g                since_phone_nurse_another
+since_visit_d~l byte    %10.0g                since_visit_dietician_total
+unit19          byte    %10.0g                unit19
+since_visit_d~t byte    %10.0g                since_visit_dietician_weight
+since_visit_d~y byte    %10.0g                since_visit_dietician_obesity
+since_visit_d~r byte    %10.0g                since_visit_dietician_another
+since_see_oth~l byte    %10.0g                since_see_other_total
+unit20          byte    %10.0g                unit20
+since_see_oth~t byte    %10.0g                since_see_other_weight
+since_see_oth~y byte    %10.0g                since_see_other_obesity
+since_see_oth~r byte    %10.0g                since_see_other_another
+since_stay_in~l byte    %10.0g                since_stay_in_hospital_total
+unit21          int     %10.0g                unit21
+since_stay_in~t byte    %10.0g                since_stay_in_hospital_weight
+since_stay_in~y byte    %10.0g                since_stay_in_hospital_obesity
+since_stay_in~r byte    %10.0g                since_stay_in_hospital_another
+since_visit_o~l byte    %10.0g                since_visit_outpatient_total
+unit22          int     %10.0g                unit22
+since_visit_o~t byte    %10.0g                since_visit_outpatient_weight
+since_visit_o~y byte    %10.0g                since_visit_outpatient_obesity
+since_visit_o~r byte    %10.0g                since_visit_outpatient_another
+since_attend_~a byte    %10.0g                since_attend_minor_injuries_tota
+unit23          int     %10.0g                unit23
+since_attend_~g byte    %10.0g                since_attend_minor_injuries_weig
+since_attend_~s byte    %10.0g                since_attend_minor_injuries_obes
+since_attend_~t byte    %10.0g                since_attend_minor_injuries_anot
+since_other_h~l byte    %10.0g                since_other_health_service_total
+unit24          int     %10.0g                unit24
+since_other_~gh byte    %10.0g                since_other_health_service_weigh
+since_other_h~i byte    %10.0g                since_other_health_service_obesi
+since_other_~th byte    %10.0g                since_other_health_service_anoth
+total13         float   %9.0g                 
+total14         float   %9.0g                 
+total15         float   %9.0g                 
+total16         float   %9.0g                 
+total17         float   %9.0g                 
+total18         float   %9.0g                 
+total19         float   %9.0g                 
+total20         float   %9.0g                 
+total21         float   %9.0g                 
+total22         float   %9.0g                 
+total23         float   %9.0g                 
+total24         float   %9.0g                 
+nhs_�           float   %9.0g                 
+logbook         double  %10.0g                logbook
+label           double  %10.0g                label
+leaflet         double  %10.0g                leaflet
+nurse           byte    %10.0g                nurse
+group_          float   %8.0g                 
+new_drug�       double  %9.0g                 (sum) new_drug�
+merge           byte    %23.0g     _merge     
+intervention_�  float   %9.0g                 
+since_total�    float   %9.0g                 
+pid             int     %10.0g                Patient identifier (randomisation
+                                                number)
+sex_            byte    %8.0g      sex_lb     
+site_           byte    %30.0g     sitelb     
+practice        float   %9.0g                 
+arm             byte    %12.0g     armlb      Trial arm
+weight_0        float   %9.0g                 _0 weight
+bmi_0           float   %9.0g                 _0 bmi
+waist_0         float   %9.0g                 _0 waist
+weight_1        float   %9.0g                 _1 weight
+weight_2        float   %9.0g                 _2 weight
+weight_3        float   %9.0g                 _3 weight
+weight_4        float   %9.0g                 _4 weight
+weight_5        float   %9.0g                 _5 weight
+nurseint        int     %9.0g                 Practice nurse delivering
+                                                intervention ID
+age_            float   %9.0g                 
+ethcat2         byte    %9.0g      ethcat2lb
+                                              Ethnicity
+qualcat         byte    %32.0g     qualcatlb
+                                              Highest level of education
+imdcent         byte    %9.0g                 Centile of deprivation. Most
+                                                deprived = 1
+weight_0i       float   %9.0g                 Baseline weight - imputed
+bmi_0i          float   %9.0g                 Baseline BMI- imputed
+waist_0i        float   %9.0g                 Baseline Waist - imputed
+weightch        float   %9.0g                 Weight change between baseline and
+                                                3 months
+_merge_         byte    %23.0g     _merge     
+control�        float   %9.0g                 
+overall_�       float   %9.0g                 
