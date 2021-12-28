@@ -30,3 +30,4 @@ _bookdown_files
 test.*
 .Rdata
 .httr-oauth
+reference/
