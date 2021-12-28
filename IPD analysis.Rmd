@@ -3,10 +3,10 @@ title: "Modelling with individual patient data"
 author: "Mi Jun Keng, Iryna Schlackow, Eleanor Pullenayegum"
 date: "`r Sys.Date()`"
 output: 
-  html_document:
+  bookdown::html_document2:
     toc: true
     toc_float: true
-bibliography: references.bib
+bibliography: [references.bib, packages.bib]
 editor_options: 
   chunk_output_type: console
 ---
@@ -14,11 +14,35 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+knitr::write_bib(c('tableone', 'qwraps2', 'DescTools'), 'packages.bib')
+
 ```
 
 
-## Introduction 
+# Introduction 
 
+
+___To add introduction paragraph about IPD___
+
+
+In this chapter, we will demonstrate how to 
+
+- manipulate dataset and construct key variables for analysis
+- summarise data; perform descriptive analysis
+- perform frequentist cost-effectiveness analysis 
+- perform Bayesian cost-effectiveness analysis 
+
+
+# Case study: Cost-utility analysis of the Ten Top Tips trial
+
+The Ten Top Tips (10TT) trial was a two-arm, individually randomised, controlled trial of a weight-loss intervention for obese adults attending general practices in the UK [@beeken_brief_2017]. 
+537 participants in the trial were randomised to receive either the 10TT intervention (n = 267), or usual care (n = 270) from their general practices.
+The intervention was designed to encourage forming of good habits through self-help materials including a leaflet with ten simple weight-control tips and a logbook to record participant's own progress. 
+
+In this chapter, we will use the 10TT trial as a case study to demonstrate how to perform cost-effectiveness analysis using individual patient data. 
+For illustration, we will be replicating the within-trial cost-effectiveness analysis of the Ten Top Tips trial [@patel_costeffectiveness_2018] using a simplified, synthetic dataset `10TT_synth_280921.csv` generated based on the trial.
+<!-- mjk: Is it possible to match the number of participants in each arm with the actual trial (currently n = 265 for tx; n = 272 for placebo in synthetic data) -->
 
 ```{r}
 
@@ -29,22 +53,223 @@ library(tidyverse)
 wd <- getwd()
 dir_data <- file.path(wd, "data")
 
-## Read in dataset 
+## Read in dataset; sample of first 5 participant data
 df <- read.csv(file.path(dir_data, "10TT_synth_280921.csv")) %>% 
   mutate(across(c("arm", "sex", "bmicat"), as.factor))
+
+head(df, 5)
+
+```
+
+We will perform a within-trial cost-utility analysis to compare the costs and outcomes (i.e. QALYs) associated with 10TT `arm = 1` and usual care `arm = 0`.
+The primary outcomes are incremental costs and effects and the incremental net monetary benefit (NMB) of 10TT versus usual care over the 2-year trial follow-up period.
+A 3.5% discount rate will apply to costs and outcomes in the second year, and we consider cost-effectiveness thresholds of £20,000 and £30,000.
+For the purpose of this chapter, we will be performing a complete case analysis so missing data will be excluded (more details on handling of missing data is available in the missing data chapter [@ref]). 
+
+<!-- I think better to look at missing data pattern within missing data chapter? packages/functions for dealing with missing data possibly introduced in that chapter -->
+
+
+## Descriptive statistics 
+
+We first start by producing descriptive statistics for the dataset. 
+This can include sample size, measures of central tendancy (mean, median, mode), measures of variability (standard deviation, variance), dispersion of data (minimum, maximum, interquatile range), shape of distribution of data (skewness, kurtosis), measures of dependence between variables (correlation, covariance). 
+These can be presented as summary values in tabular form (typically "Table 1" in health research publications), or visualised graphically using histograms for example. 
+Descriptive statistics are helpful to understand for example how your data is distributed, imbalances between treatment arms etc. which ultimately informs the analysis (choice of model to use or variables to include in model) and interpretation of results. 
+
+Examples of packages for producing descriptive statistics include: 
+[qwraps2](https://cran.r-project.org/web/packages/qwraps2/vignettes/summary-statistics.html) [@R-qwraps2], 
+[tableone](https://cran.r-project.org/web/packages/tableone/vignettes/introduction.html) [@R-tableone], 
+[DescTools](https://andrisignorell.github.io/DescTools/) [@R-DescTools]
+.
+It is also possible to use base R or tidyverse to produce descriptive statistics, which probably gives you maximum control over how you want to summarise and present the data. 
+
+### Baseline demographics 
+
+Here, we summarise participant demographics at baseline, including participants sex, age, and their BMI category `bmicat`, separately for participants in the 10TT arm and the usual care arm.
+
+<!-- mjk: add definition of BMI cat-->
+
+```{r}
+
+tableone::CreateTableOne(vars = c("sex", "age", "bmicat"), strata = "arm", data = df, test = F)
+
+```
+
+### Utilities & QALYs
+
+Participants completed the EQ-5D-3L questionnaire during study visits at baseline and 3, 6, 12, 18 and 24 months. These responses were mapped onto utility scores based on the UK tariffs [@addref21] (labelled `qol_X`, where `X` is the month of measurement).
+
+```{r}
+
+## Example of QoL data
+
+df_qol <- df %>% 
+  select(id, arm, contains("qol"))
+
+head(df_qol, 3)
+
+```
+
+We apply 3.5% discounting to the QoL in the second year. 
+
+```{r}
+
+## Function to perform discounting
+## Default discount rate set at 3.5% 
+disc <- function(x, year, disc_rate = 0.035) {
+  x / ((1 + disc_rate)^(year - 1))
+}
+
+
+## Apply discounting to QoL data
+df_qol_disc <- df_qol %>% 
+  ## convert dataframe from wide to long format
+  pivot_longer(contains("qol"), names_to = "month", names_prefix = "qol_", names_transform = list(month = as.integer), values_to = "qol") %>% 
+  ## convert month to follow-up year; set baseline to be in year 1
+  mutate(year = pmax(1, ceiling(month/12))) %>% 
+  mutate(qol_disc = disc(qol, year)) 
+
+head(df_qol_disc, 3)
+
 ```
 
 
-### Dataset description 
+```{r, fig.cap = "Trend in QoL (discounted) over time in each treatment arm"}
 
-For illustration, we will be using a synthetic dataset generated based on the Ten Top Tips trial [@beeken_brief_2017].
+df_plot_qol <- df_qol_disc %>% 
+  group_by(arm, month) %>% 
+  summarise(qol_disc_mean = mean(qol_disc, na.rm = T), qol_disc_se = sqrt(var(qol_disc, na.rm = T)/length(qol_disc)))
+
+ggplot(data = df_plot_qol, aes(color = arm, group = arm)) + 
+  geom_point(aes(x = month, y = qol_disc_mean, shape = arm)) + 
+  geom_line(aes(x = month, y = qol_disc_mean, group = arm, linetype = arm)) + 
+  geom_errorbar(aes(x = month, ymin = qol_disc_mean - 1.96 * qol_disc_se, ymax = qol_disc_mean + 1.96 * qol_disc_se)) + 
+  labs(x = "Month", y = "Mean QoL (discounted) at each study visit (95% CI)") + 
+  scale_x_continuous(breaks = c(0, 3, 6, 12, 18, 24))
+
+# ggplot(data = df_qol_disc, aes(x = month, y = qol_disc, group = arm, color = arm)) +
+#   stat_summary(geom = "pointrange", fun.data = "mean_cl_boot", na.rm = T, conf.int = .95, B = 1000)
+
+```
+
+
+A utility profile was constructed for participants assuming a straight-line relation between their utility values at each measurement point. 
+QALYs for every patient from baseline to 2 years were calculated as the area under the utility profile.
+
+```{r, fig.cap="Example of utility profile for participant ID 3. QALYs is the shaded region under the utility profile."}
+
+## Example of discounted QoL data for participant id 3
+df_qol_disc %>% 
+  filter(id == 3)
+
+ggplot(data = df_qol_disc %>% filter(id == 3)) + 
+  geom_line(aes(x = month, y = qol_disc)) + 
+  geom_ribbon(aes(x = month, ymax = qol_disc, ymin = 0), fill = "red", alpha = 0.2) + 
+  labs(x = "Month", y = "QoL (discounted)") + 
+  scale_x_continuous(breaks = c(0, 3, 6, 12, 18, 24)) 
+
+```
+
+```{r}
+
+df_qaly_disc <- df_qol_disc %>% 
+  group_by(id) %>% 
+  ## exclude participants with missing qol at any visit
+  filter(!any(is.na(qol_disc))) %>% 
+  # summarise(qaly = sum(diff(month) * (head(qol_disc, -1) + tail(qol_disc, -1)))) ## if base R
+  ## calculate area under the utility profile
+  summarise(qaly_disc = DescTools::AUC(x = month, y = qol_disc, method = "trapezoid") / 12) 
+
+summary(df_qaly_disc$qaly_disc)
+
+```
+
+```{r}
+
+df_qol_analysis <- df_qol_disc %>% 
+  select(id, month, qol_disc) %>% 
+  pivot_wider(names_from = "month", values_from = "qol_disc", names_prefix = "qol_disc_") %>% 
+  left_join(df_qaly_disc, by = "id")
+  
+```
 
 
 ### Resource use and costs
 
-### Utilities & QALYs
+Data on healthcare resource use were extracted from general practitioner (GP) records over the 2-year study period, and costs were measured from a healthcare perspective. 
+These include cost of GP visits (number of GP visits`gpvis` * £45/GP visit), cost of intervention (`costint` £22.90 for 10TT intervention), and cost of other healthcare resource use such as secondary care and practice nurse visits (`costoth`). 
+
+```{r}
+
+## Example of cost data
+
+df_cost <- df %>% 
+  select(id, arm, gpvis, contains("cost")) 
+
+head(df_cost, 3)
+
+```
+
+
+```{r}
+
+df_cost_analysis <- df_cost %>% 
+  select(id, totalcost) %>% 
+  rename(cost_disc = totalcost)
+
+```
+
+<!-- mjk: i assume costoth have already accounted for discounting & costint incurred in first year so no discounting needed. What about gpvis? The way totalcost is calculated now assumes all GP visits in first year. Possibly split gpvis into different years? also suggest removing total cost from raw data to demonstrate the calculation with discounting. -->
+
+
+```{r, fig.cap= "Distribution of cost"}
+
+ggplot(data = df_cost_analysis) + 
+  geom_histogram(aes(x = cost_disc), binwidth = 250) + 
+  labs(x = "Cost (discounted)")
+
+```
+
+From the histogram, we see that the data is bounded below by zero and heavily skewed with long right hand tail, which are features typical of cost data.
 
 ### Analysis dataset
+
+We now bring together all the datasets required for analysis. 
+After excluding participants with missing data, 167 participants (31%) are included in our analysis, with 67 and 100 participants in the 10TT and usual care arms respectively.
+
+```{r}
+
+df_analysis <- df %>% 
+  select(id, arm, sex, age, bmicat) %>% 
+  left_join(df_qol_analysis, by = "id") %>% 
+  left_join(df_cost_analysis, by = "id") %>% 
+  drop_na() 
+
+tableone::CreateTableOne(strata = "arm", data = df_analysis %>% select(-id), test = F)
+
+```
+
+Distribution of cost and QALYs by treatment arm 
+
+```{r}
+
+p <- ggplot(data = df_analysis, aes(group = arm, color = arm, fill = arm)) + 
+  geom_point(aes(x = cost_disc, y = qaly_disc)) + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Cost", y = "QALYs (24 months)")
+
+ggExtra::ggMarginal(p, groupColour = T, groupFill = T, alpha = 0.25)
+
+```
+
+
+
+
+
+
+
+
+
 
 
 ```{r child = 'frequentist.Rmd'}
@@ -55,6 +280,6 @@ For illustration, we will be using a synthetic dataset generated based on the Te
 ```
 
 
-## References 
+### References 
 
 <div id="refs"></div>
