@@ -31,3 +31,5 @@ test.*
 .Rdata
 .httr-oauth
 reference/
+
+frequentist_src.R
