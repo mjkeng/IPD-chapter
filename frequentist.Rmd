@@ -1,5 +1,365 @@
+## Frequentist estimation
 
-## Frequentist analysis 
+In this section, a cost-utility analysis is undertaken, comparing the costs and outcomes (ie QALYs) associated with 10TT versus usual care. The primary outcomes are incremental costs and effects and the incremental net monetary benefit (NMB) of 101TT versus usual care at 2 years, as per trial follow-up. No extrapolation is undertaken and cost-effectiveness thresholds of £20,000 and £30,000 are being considered.
+
+### Cost and utility equations
+
+As per [@patel_costeffectiveness_2018], we will compare differences in mean costs and utilities using linear regression models relating participants' outcomes of interest (i.e. costs or change in QALYs at 2 years) with important variables.
+
+A _linear regression_ is a type of predictive analysis model that estimates the relationship between an independent variable (e.g. cost at 2 years) and one or more explanatory (dependent) variables (e.g. participant's trial arm or baseline age). In mathematical terms, if $y$ denotes the independent variable, $x_1, \ldots, x_n$ are the independent variables and there are $k$ observation vectors $\{y_i, x_{i1}, \ldots, x_{in} \}_{i=1}^k$, the relationship between $y$ and $x_i$ is assumed to be of the form
+
+$$y_i = \beta_0 + \beta_1 x_{i1} + \cdots + \beta_n x_{in} + \epsilon_i, \quad i = 1, \ldots, k.$$
+
+Here, $\epsilon$ is the _noise_ variable, an unobserved random variable and $\beta_i$ are the coefficients quantifying the effect of the $i$th predictor $x_i$ onto the outcome variable $y$ while holding all other predictors constant. Specifically, the value of the coefficient $\beta_i$ represents the change in the outcome $y$ if the value of $x_i$ is increased by one unit, while all other parameters remain unchanged.
+
+Further details describing the use of the `lm` command, including possible arguments, output values as well as references to the topic of linear regression in general, can be found on the [`lm` help webpage](https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/lm)
+
+For the simplest scenario, let us start with unadjusted models, i.e. let us regress participants' outcomes of interest on their treatment arm only:
+
+```{r unadjusted}
+
+# modelling difference in costs
+m_cost <- lm(cost_disc ~ arm, data = df_analysis)
+summary(m_cost)$coefficients
+
+# modelling difference in utilities
+m_qol <- lm(qaly_disc ~ arm, data = df_analysis)
+summary(m_qol)$coefficients
+
+```
+
+The models suggest an incremental difference of `r round(as.numeric(m_cost$coefficients["(arm)"]))` pounds and `r round(as.numeric(m_qol$coefficients["(arm)"]), digits = 2)` QALYs between the arms, which can be extracting using the code `round(as.numeric(m_cost$coefficients["(arm)"]))` and `round(as.numeric(m_qol$coefficients["(arm)"]), digits = 2)` respectively.
+
+_Note._ Results from such unadjusted models could also be extracted using one the following methods: 
+
+* By applying two-sampled t-tests using the `t.test` command:
+
+```{r unadjustedTTest}
+
+# difference in costs
+t.test(cost_disc ~ arm, data = df_analysis)
+
+# difference in QALYs
+t.test(qaly_disc ~ arm, data = df_analysis)
+
+```
+
+* By calculating mean costs and QALYs in each arm (and finding the difference): 
+
+```{r unadjustedManual}
+
+df_analysis %>%
+  group_by(arm) %>%
+  summarise(mean(qaly_disc), mean(cost_disc))
+
+```
+
+Often, however, it is deemed important to adjust models for further characteristics, for example because of a baseline imbalance. In this case, same `lm` syntax could be used with relevant independent predictors added to the right-hand side of the formula. 
+
+For illustration purposes, we will additionally adjust the cost model for baseline age and gender, and utilities model for baseline age, gender and utility at baseline
+
+```{r adjusted}
+
+### Adjusted analysis ###
+
+# modelling difference in costs (adjusted for age & gender)
+m_cost <- lm(cost_disc ~ arm + sex + age, data = df_analysis)
+summary(m_cost)$coefficients
+
+# modelling difference in utilities (adjusted for age & gender)
+m_qol <- lm(qaly_disc ~ arm + sex + age + qol_disc_0, data = df_analysis)
+summary(m_qol)$coefficients
+
+```
+
+To decide on the set of predictors, we could check for baseline imbalances in each potentially important characteristic between the treatment arms using the two-sampled `t.test` command:
+
+```{r imbalances}
+
+### Check for imbalances ###
+
+# imbalance in sex between treatment arms
+t.test(as.numeric(sex) ~ arm, data = df_analysis)
+
+# imbalance in baseline age between treatment arms
+t.test(age ~ arm, data = df_analysis)
+
+# imbalance in baseline utilities between treatment arms
+t.test(qol_disc_0 ~ arm, data = df_analysis)
+
+```
+
+As it happens, there is no evidence for baseline imbalances in the dataset. However, even when this is the case, it may still be important to adjust for certain characteristics.
+
+__SUR modelling??__
+
+### Net monetary benefit
+
+We will now calculate the monetary net benefit using the £20,000 and £30,000 willingness-to-pay thresholds. 
+
+First we need to summarise cost and utility differences by arm: __Or should this be done via the m_cost and m_qol models?__
+
+```{r dfInc}
+
+df_inc <- df_analysis %>%
+  # produce summary statistics by the treatment arm variable
+  group_by(arm) %>%
+  # summarise mean cost and utility differences
+  summarise(cost_disc = mean(cost_disc), qaly_disc = mean(qaly_disc),
+            .groups = 'drop') %>%
+  # reshape into a wide format
+  pivot_longer(cols = c("cost_disc", "qaly_disc")) %>%
+  pivot_wider(names_from = c(name, arm), values_from = value) %>%
+  # calculate incremental cost and utilities
+  mutate(cost_inc = cost_disc_1 - cost_disc_0,
+         qaly_inc = qaly_disc_1 - qaly_disc_0
+  )
+
+# view results
+head(df_inc, 3)
+
+```
+
+And now calculate the net monetary benefit
+
+```{r nb}
+
+# vector with willingness-to-pay thresholds
+r <- c(20000, 30000)
+
+# transform r into a dataframe for subsequent merging
+df_r <- tibble(r = r)
+
+# name resulting variable df_nb
+df_nb <- merge(df_inc, df_r) %>%
+  # calculate NMB
+  mutate(nb = qaly_inc * r - cost_inc)
+
+# view results
+df_nb
+
+```
+
+Thus, the NMB of the 10TT intervention vs usual care is `r df_nb %>% filter(r == 20000) %>% select(nb) %>% pull() %>% round()` with the £20,000 willingness-to-pay threshold (obtained by code `df_nb %>% filter(r == 20000) %>% select(nb) %>% pull() %>% round()`), and `r df_nb %>% filter(r == 30000) %>% select(nb) %>% pull() %>% round()`  with the £30,000 willingness-to-pay threshold.
 
 
-tests.....
+### Bootstrap and uncertainty
+
+__This section is a bit long; suggestions on how to make it shorter welcome__
+
+In this section we will perform non-parametric bootstrap by sampling participants with replacement. For each sampling loop, `r nrow(df_analysis)`  participants will be sampled, where `r nrow(df_analysis)` is the number of participants in our original (complete case) dataset and can be obtained by running the `nrow(df_analysis)` command. The analysis from the previous section will be repeated on this sampled dataset. We will perform 1,000 such sampling loops and summarise results to obtain confidence intervals around the estimates using the percentile method [@gray2011applied].
+
+For reproducibility purposes, we start with setting the seed of R's random number generator using the command `set.seed`. This way we can ensure when the code is run again, participants are sampled in the same way and therefore the same results are obtained.
+
+
+```{r set_seed}
+
+set.seed(123)
+
+```
+
+For each loop, sampling will be done using the `sample_n` command from the `tidyverse` package. Before we do the sampling however, let us re-write repetitive chunks of the code in the previous section as functions: __Should functions be made generic to accept any column name etc?__
+
+```{r functions}
+
+get_inc <- function(df) {
+  
+  # function to summarise cost and utility differences by arm
+  # Argument: df (dataframe, eg df_analysis)
+  # Here, the dataframe must contain "arm" with values 1 & 0, "cost_disc" and "qaly_disc" columns
+  # However all that can be parameterised
+  df_inc <- df %>%
+    # produce summary statistics by the treatment arm variable
+    group_by(arm) %>%
+    # summarise mean cost and utility differences
+    summarise(cost_disc = mean(cost_disc), qaly_disc = mean(qaly_disc),
+              .groups = 'drop') %>%
+    # reshape into a wide format
+    pivot_longer(cols = c("cost_disc", "qaly_disc")) %>%
+    pivot_wider(names_from = c(name, arm), values_from = value) %>%
+    # calculate incremental cost and utilities
+    mutate(cost_inc = cost_disc_1 - cost_disc_0,
+           qaly_inc = qaly_disc_1 - qaly_disc_0
+    )
+  
+  return(df_inc)
+}
+
+# function to summarise cost and utility differences by arm
+# Arguments: df_inc (dataframe; as generated by get_inc); r (vector of thresholds)
+
+get_nb <- function(df_inc, r) {
+  
+  df_r <- tibble(r = r)
+  df_nb <- merge(df_inc, df_r) %>%
+    mutate(nb = qaly_inc * r - cost_inc)
+  
+  return(df_nb)
+}
+
+```
+
+We are now ready to generate the bootstrap dataset __change n_sim to 1000 at a later stage perhaps__
+
+```{r bootstrap}
+
+# number of simulations
+n_sim <- 100
+
+# initialise output dataset
+df_boot <- NULL
+
+# loop across simulations s in 1:n_sim
+for (s in 1:n_sim) {
+  # sample patients from df_analysis
+  df_analysis_s <- sample_n(df_analysis, size = nrow(df_analysis), replace = TRUE)
+  # calculate incremental cost & utility differences by simulation
+  df_inc_s <- get_inc(df = df_analysis_s) %>%
+    # add simulation number
+    mutate(sim = s) %>%
+    # re-arrange columns
+    select(sim, everything())
+  # add to the output
+  df_boot <- rbind(df_boot, df_inc_s)
+}
+
+head(df_boot, 3)
+
+```
+
+_Note_ The above calculations are performed in a sequential loop but are independent of each other. It is therefore possible to parallelise the code, e.g. using the `foreach` command. __should we provide the code or is this  becoming too technical?__
+
+Having bootstrapped the dataset, we are ready to calculate the net monetary benefit. We will want to construct the cost-effectiveness acceptability curve, and therefore we will calculate the NMB for a range of thresholds.
+
+```{r nbBoot}
+
+# vector with thresholds
+r <- seq(from = 0, to = 100000, by = 100)
+
+# calculate NMB
+df_boot <- get_nb(df_inc = df_boot,  r = r)
+
+# view result
+head(df_boot, 3)
+
+```
+
+For the percentile method of calculating 95% confidence intervals, we need to order the vector with the outcome of interest (eg the 1,000 cost differences in treatment arm) and take the 25th and 975th values. Since this is likely going to be needed more than once, it may be efficient to turn this process into a function:
+
+```{r bootstrapCI}
+
+# Function: get confidence interval from a vector using a percentile method
+# Arguments: vector with outcomes (vec; eg cost_delta_0); confidence level (level; optional argument with default value of 0.95)
+get_bootstrap_ci <- function(vec, level = 0.95) {
+  # order the vector
+  vec <- sort(vec)
+  n <- length(vec)
+  # calculate percentile to be cut off
+  temp <- (1 - level) / 2
+  # read off values at respective coordinates
+  lower <- vec[max(floor(n * temp), 1)]
+  upper <- vec[min(ceiling(n * (1 - temp)), n)]
+  return(list(l = lower, u = upper))
+}
+
+```
+
+We are now ready to generate confidence intervals:
+
+```{r ci}
+ 
+### Cost differences ###
+
+# in usual care arm
+get_bootstrap_ci(df_boot$cost_disc_0)
+# in intervention arm
+get_bootstrap_ci(df_boot$cost_disc_1)
+# incremental
+get_bootstrap_ci(df_boot$cost_inc)
+
+### utility differences ###
+
+# in usual care arm
+get_bootstrap_ci(df_boot$qaly_disc_0)
+# in intervention arm
+get_bootstrap_ci(df_boot$qaly_disc_1)
+# incremental
+get_bootstrap_ci(df_boot$qaly_inc)
+
+### net benefit ###
+
+# Net benefit at £20,000 threshold
+get_bootstrap_ci(df_boot %>% filter(r == 20000) %>% select(nb) %>% pull())
+# Net benefit at £30,000 threshold
+get_bootstrap_ci(df_boot %>% filter(r == 30000) %>% select(nb) %>% pull())
+
+```
+
+As the last step, let us plot the bootstrap estimates on the the cost-effectiveness plane.
+
+```{r cePlane}
+
+xmax <- max(abs(df_boot$qaly_inc))
+ymax <- max(abs(df_boot$cost_inc))
+p <- ggplot(df_boot, aes(x = qaly_inc, y = cost_inc)) + 
+  geom_point() + 
+  xlab("Incremental QALYs") + ylab("Incremental Cost") + 
+  coord_cartesian(xlim = c(-xmax, xmax), ylim = c(-ymax, ymax)) + 
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  theme_bw()
+p
+
+```
+
+### Cost-effectiveness acceptability curve
+
+As it happens, almost all points in the cost-effectiveness place lie in the north-east quadrant, i.e. the 10TT intervention is both more costly and less effective. Let us quantify this effect by constructing the cost-effectiveness acceptability curve.
+
+We will use the `df_boot` dataset for this purpose. First, we need to assess whether each entry in this dataset (i.e. each simulation / threshold combination) is cost-effective:
+
+```{r ceacCE}
+
+# for the simulation to be cost-effective, need 
+# (1) EITHER QALY effect to be positive and NMB to be non-negative
+# (2) OR QALY effect to be negative and NMB to be non-positive
+df_boot <- df_boot %>%
+  mutate(ce = (qaly_inc > 0 & nb <= 0) | (qaly_inc < 0 & nb >= 0))
+
+head(df_boot, 3)
+
+```
+
+This can now be translated into a probability of being cost-effective for each willingness-to-pay threshold value
+
+```{r ceacP}
+
+# calculate probability of being cost-effective for each threshold r
+# equivalent to the proportion of CE column entries that are equal to 1
+# Since CE column entries are either 1 or 0, this is equivalent to the mean
+df_ceac <- df_boot %>%
+  group_by(r) %>%
+  summarise(p_ce = mean(ce))
+
+head(df_ceac, 3)
+
+```
+
+And results can be visualised using standard `ggplot` commands
+
+```{r ceacPlot}
+
+p <- ggplot(df_ceac, aes(x = r, y = p_ce)) +
+  # connect observations
+  geom_line() +
+  # change y-axis limits
+  coord_cartesian(ylim = c(0, 1)) +
+  # change axis titles
+  xlab("Willingness-to-pay threshold") +
+  ylab("Probability of the treatment being cost-effective") +
+  # display probability labels as percentages
+  scale_y_continuous(labels = scales::percent)
+p
+
+```
+
+As expected, the probability of the 10TT intervention to be cost-effective is very low at any willingness-to-pay threshold up to £100,000
