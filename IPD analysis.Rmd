@@ -15,6 +15,7 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
+## Include packages here to automatically generate reference
 knitr::write_bib(c('tableone', 'qwraps2', 'DescTools'), 'packages.bib')
 
 ```
@@ -23,13 +24,21 @@ knitr::write_bib(c('tableone', 'qwraps2', 'DescTools'), 'packages.bib')
 # Introduction 
 
 
-___To add introduction paragraph about IPD___
+Analysis using individual patient data come with the benefits afforded by the type of analysis that can be performed, and the ability to capture patient heterogeneity. 
+However, there are practical and methodological challenges involved. 
+Practically, there could be issues with privacy, storage, and computational power required for handling and analysing large datasets. 
+Methodological challenges includes handling of missing data, choice of models to use for analysis etc. 
 
+Data pre-processing is a critical component of data analysis, and is typically needed to derive variables of interest required for analysis.
+It is unfortunately not always straight-forward, and can be time-consuming. 
+For example, one may need to derive healthcare cost from records of prescriptions, GP visits and hospital visits, and these records may need to be extracted from different databases, which may all use different coding systems. 
+
+Data exploration is then needed to help understand the structure of the data, identify outliers, understand relationship between variables etc. which subsequently informs how your research question can be addressed (e.g. what models to use given data distribution). 
 
 In this chapter, we will demonstrate how to 
 
 - manipulate dataset and construct key variables for analysis
-- summarise data; perform descriptive analysis
+- summarise data; perform descriptive analysis 
 - perform frequentist cost-effectiveness analysis 
 - perform Bayesian cost-effectiveness analysis 
 
@@ -42,7 +51,8 @@ The intervention was designed to encourage forming of good habits through self-h
 
 In this chapter, we will use the 10TT trial as a case study to demonstrate how to perform cost-effectiveness analysis using individual patient data. 
 For illustration, we will be replicating the within-trial cost-effectiveness analysis of the Ten Top Tips trial [@patel_costeffectiveness_2018] using a simplified, synthetic dataset `10TT_synth_280921.csv` generated based on the trial.
-<!-- mjk: Is it possible to match the number of participants in each arm with the actual trial (currently n = 265 for tx; n = 272 for placebo in synthetic data) -->
+
+__Is it possible to match the number of participants in each arm with the actual trial (currently n = 265 for tx; n = 272 for placebo in synthetic data)__
 
 ```{r}
 
@@ -66,28 +76,26 @@ The primary outcomes are incremental costs and effects and the incremental net m
 A 3.5% discount rate will apply to costs and outcomes in the second year, and we consider cost-effectiveness thresholds of £20,000 and £30,000.
 For the purpose of this chapter, we will be performing a complete case analysis so missing data will be excluded (more details on handling of missing data is available in the missing data chapter [@ref]). 
 
-<!-- I think better to look at missing data pattern within missing data chapter? packages/functions for dealing with missing data possibly introduced in that chapter -->
+__I think better to look at missing data pattern within missing data chapter? packages/functions for dealing with missing data possibly introduced in that chapter__
 
 
 ## Descriptive statistics 
 
 We first start by producing descriptive statistics for the dataset. 
-This can include sample size, measures of central tendancy (mean, median, mode), measures of variability (standard deviation, variance), dispersion of data (minimum, maximum, interquatile range), shape of distribution of data (skewness, kurtosis), measures of dependence between variables (correlation, covariance). 
+This can include sample size, measures of central tendancy (mean, median, mode), measures of variability (standard deviation, variance), dispersion of data (minimum, maximum, interquatile range), shape of distribution of data (skewness, kurtosis), and measures of dependence between variables (correlation, covariance). 
 These can be presented as summary values in tabular form (typically "Table 1" in health research publications), or visualised graphically using histograms for example. 
 Descriptive statistics are helpful to understand for example how your data is distributed, imbalances between treatment arms etc. which ultimately informs the analysis (choice of model to use or variables to include in model) and interpretation of results. 
 
-Examples of packages for producing descriptive statistics include: 
+It is possible to use base R or tidyverse to produce descriptive statistics, which gives you maximum control over how you want to summarise and present the data. There are also many packages that can help you do this (varying in ease of use and flexibility for customisation), including:
 [qwraps2](https://cran.r-project.org/web/packages/qwraps2/vignettes/summary-statistics.html) [@R-qwraps2], 
 [tableone](https://cran.r-project.org/web/packages/tableone/vignettes/introduction.html) [@R-tableone], 
-[DescTools](https://andrisignorell.github.io/DescTools/) [@R-DescTools]
-.
-It is also possible to use base R or tidyverse to produce descriptive statistics, which probably gives you maximum control over how you want to summarise and present the data. 
+[DescTools](https://andrisignorell.github.io/DescTools/) [@R-DescTools].
 
 ### Baseline demographics 
 
-Here, we summarise participant demographics at baseline, including participants sex, age, and their BMI category `bmicat`, separately for participants in the 10TT arm and the usual care arm.
+Here, we summarise participants' demographics at baseline, including sex, age, and BMI category `bmicat`, separately for participants in the 10TT arm and the usual care arm.
 
-<!-- mjk: add definition of BMI cat-->
+__add definition of BMI cat__
 
 ```{r}
 
@@ -95,9 +103,10 @@ tableone::CreateTableOne(vars = c("sex", "age", "bmicat"), strata = "arm", data 
 
 ```
 
+
 ### Utilities & QALYs
 
-Participants completed the EQ-5D-3L questionnaire during study visits at baseline and 3, 6, 12, 18 and 24 months. These responses were mapped onto utility scores based on the UK tariffs [@addref21] (labelled `qol_X`, where `X` is the month of measurement).
+Participants completed the EQ-5D-3L questionnaire during study visits at baseline, and at 3, 6, 12, 18 and 24 months. These responses were mapped onto utility scores based on the UK tariffs [@addref21] (labelled `qol_X`, where `X` is the month of measurement).
 
 ```{r}
 
@@ -159,6 +168,7 @@ QALYs for every patient from baseline to 2 years were calculated as the area und
 ```{r, fig.cap="Example of utility profile for participant ID 3. QALYs is the shaded region under the utility profile."}
 
 ## Example of discounted QoL data for participant id 3
+
 df_qol_disc %>% 
   filter(id == 3)
 
@@ -219,7 +229,7 @@ df_cost_analysis <- df_cost %>%
 
 ```
 
-<!-- mjk: i assume costoth have already accounted for discounting & costint incurred in first year so no discounting needed. What about gpvis? The way totalcost is calculated now assumes all GP visits in first year. Possibly split gpvis into different years? also suggest removing total cost from raw data to demonstrate the calculation with discounting. -->
+__I assume costoth have already accounted for discounting & costint incurred in first year so no discounting needed. What about gpvis? The way totalcost is calculated now assumes all GP visits in first year. Possibly split gpvis into different years? also suggest removing total cost from raw data to demonstrate the calculation with discounting.__
 
 
 ```{r, fig.cap= "Distribution of cost"}
@@ -234,29 +244,38 @@ From the histogram, we see that the data is bounded below by zero and heavily sk
 
 ### Analysis dataset
 
-We now bring together all the datasets required for analysis. 
-After excluding participants with missing data, 167 participants (31%) are included in our analysis, with 67 and 100 participants in the 10TT and usual care arms respectively.
+We now combine the datasets on patient characteristics `df`, cost `df_cost_analysis` and quality of life `df_qol_analysis` for further analysis. 
 
 ```{r}
 
-df_analysis <- df %>% 
+df_analysis_withmissing <- df %>% 
   select(id, arm, sex, age, bmicat) %>% 
   left_join(df_qol_analysis, by = "id") %>% 
-  left_join(df_cost_analysis, by = "id") %>% 
+  left_join(df_cost_analysis, by = "id")
+
+df_analysis_withmissing %>% 
+  summarise(across(c("qaly_disc", "cost_disc"), ~ sum(is.na(.))))
+
+```
+
+There are 369 and 153 participants missing measures of quality of life and cost respectively. After excluding participants with missing data, 167 participants (31%) are included in our analysis, with 67 and 100 participants in the 10TT and usual care arms respectively.
+
+```{r}
+
+df_analysis <- df_analysis_withmissing %>% 
   drop_na() 
 
 tableone::CreateTableOne(strata = "arm", data = df_analysis %>% select(-id), test = F)
 
 ```
 
-Distribution of cost and QALYs by treatment arm 
 
-```{r}
+```{r fig.cap= "Total cost and QALYs over 2 years of follow-up stratified by treatment arm"}
 
 p <- ggplot(data = df_analysis, aes(group = arm, color = arm, fill = arm)) + 
   geom_point(aes(x = cost_disc, y = qaly_disc)) + 
   theme(legend.position = "bottom") + 
-  labs(x = "Cost", y = "QALYs (24 months)")
+  labs(x = "Total cost (£)", y = "QALYs")
 
 ggExtra::ggMarginal(p, groupColour = T, groupFill = T, alpha = 0.25)
 
@@ -278,6 +297,8 @@ ggExtra::ggMarginal(p, groupColour = T, groupFill = T, alpha = 0.25)
 
 ```{r child = 'bayesian.Rmd'}
 ```
+
+
 
 
 ### References 
