@@ -142,15 +142,13 @@ df_nb
 
 Thus, the NMB of the 10TT intervention vs usual care is `r df_nb %>% filter(r == 20000) %>% select(nb) %>% pull() %>% round()` with the £20,000 willingness-to-pay threshold (obtained by code `df_nb %>% filter(r == 20000) %>% select(nb) %>% pull() %>% round()`), and `r df_nb %>% filter(r == 30000) %>% select(nb) %>% pull() %>% round()`  with the £30,000 willingness-to-pay threshold.
 
-
 ### Bootstrap and uncertainty
 
-__This section is a bit long; suggestions on how to make it shorter welcome__
+__Discussion point: perhaps use a package here, eg boot?__
 
 In this section we will perform non-parametric bootstrap by sampling participants with replacement. For each sampling loop, `r nrow(df_analysis)`  participants will be sampled, where `r nrow(df_analysis)` is the number of participants in our original (complete case) dataset and can be obtained by running the `nrow(df_analysis)` command. The analysis from the previous section will be repeated on this sampled dataset. We will perform 1,000 such sampling loops and summarise results to obtain confidence intervals around the estimates using the percentile method [@gray2011applied].
 
 For reproducibility purposes, we start with setting the seed of R's random number generator using the command `set.seed`. This way we can ensure when the code is run again, participants are sampled in the same way and therefore the same results are obtained.
-
 
 ```{r set_seed}
 
@@ -264,7 +262,7 @@ get_bootstrap_ci <- function(vec, level = 0.95) {
 
 ```
 
-We are now ready to generate confidence intervals:
+We are now ready to generate confidence intervals: __To rewrite as a table; will make it shorter but also illustrate how to produce a table__
 
 ```{r ci}
  
