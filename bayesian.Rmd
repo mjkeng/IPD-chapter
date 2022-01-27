@@ -1,3 +1,84 @@
 ## Bayesian analysis 
 
-test....
+```{r}
+library(rjags)
+data <- read.csv("data/10TT_synth_280921.csv")
+```
+
+We will need to model that data parametrically, so we begin by examining the distributions of cost and QoL scores
+```{r}
+par(mfrow=c(2,2))
+hist(data$totalcost)
+qqnorm(data$totalcost)
+qqline(data$totalcost)
+hist(log(data$totalcost))
+qqnorm(log(data$totalcost))
+qqline(log(data$totalcost))
+```
+A log transform seems to work well, so we log-transform the costs
+```{r}
+data$log_totalcost <- log(data$totalcost)
+```
+We now consider the QoL scores
+```{r}
+par(mfrow=c(2,6))
+hist(data$qol_0);hist(data$qol_3);hist(data$qol_6);hist(data$qol_12);hist(data$qol_18);hist(data$qol_24)
+qqnorm(data$qol_0); qqline(data$qol_0);qqnorm(data$qol_3); qqline(data$qol_3);qqnorm(data$qol_6); qqline(data$qol_6);qqnorm(data$qol_12); qqline(data$qol_12);qqnorm(data$qol_18); qqline(data$qol_18);qqnorm(data$qol_24); qqline(data$qol_24)
+```
+
+The main departure from Normality is a chunk of observations at the upper bound of 1. We will handle this through a truncated Normal distribution. We first set up a matrix of QoL scores, with one row for each patient and one column for each time point. We then create a matrix recording whether each observation is at the upper bound. The truncated observations are then set to missing.
+
+```{r}
+QOL <- cbind(data$qol_0,data$qol_3,data$qol_6,data$qol_12,data$qol_18,data$qol_24)
+Upper <- matrix(as.numeric(QOL==1),ncol=6)
+for(j in 1:6) QOL[QOL[,j]==1,j] <- NA
+```
+
+
+
+We stratify the data by treatment arm
+```{r}
+Outcomes0 <- cbind(data$log_totalcost,QOL)[data$arm==0,]
+Outcomes1 <- cbind(data$log_totalcost,QOL)[data$arm==1,]
+
+Upper0 <- Upper[data$arm==0,]
+Upper1 <- Upper[data$arm==1,]
+```
+
+
+JAGS requires initial values for the truncated observations, which we set up here
+```{r}
+QOL_inits <- array(dim=dim(QOL))
+for(j in 1:6) QOL_inits[Upper[,j]==1,j] <- 1 + runif(1,0,1)/10
+QOL_inits0 <- QOL_inits[data$arm==0,]
+QOL_inits1 <- QOL_inits[data$arm==1,]
+Outcomes_inits0 <- cbind(rep(NA,nrow(Outcomes0)),QOL_inits0)
+Outcomes_inits1 <- cbind(rep(NA,nrow(Outcomes1)),QOL_inits1)
+```
+
+We will implement the Bayesian approach by modelling the log costs and six (untruncated) QoL scores as a multivariate Noraml. We then back-transform to recover the estimated mean costs and mean QoL scores with truncation at 1 Before running the JAGS model, we first specify the initial values (jags.inits) and the data (jags.data). The code for the model itself is in jags.script.txt, and is run using jags.model. 
+
+```{r comment=''}
+cat(readLines('jags.script.txt'), sep = '\n')
+```
+
+
+We begin with a burn-in of 1000 iterations then run 1000 further iterations and take a look at the sampled values.
+
+```{r}
+jags.inits <- list(Outcomes0=Outcomes_inits0,Outcomes1=Outcomes_inits1)
+
+jags.data <- list(Outcomes0=Outcomes0,Outcomes1=Outcomes1,n0=nrow(Outcomes0),n1=nrow(Outcomes1),Upper_0=Upper0,Upper_1=Upper1)
+model <- jags.model("jags.script.txt", data=jags.data, inits=jags.inits, n.chains=1)
+
+update(model, n.iter=1000)
+
+samples <- coda.samples(model, variable.names=c("cost_0_mean","qol_tot_0_mean","cost_1_mean","qol_tot_1_mean","incr_qol_tot","incr_cost_tot","ICER"),n.iter=1000)
+summary(samples)
+```
+
+
+
+
+
+

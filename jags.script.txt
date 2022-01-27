@@ -1,0 +1,194 @@
+model{
+
+lim = 1
+disc_rate <- 0.035
+
+# Arm 0
+for(id in 1:n0){
+	Outcomes0[id,1] ~ dnorm(mu_0[1],tau0[1])
+	for(col in 2:7){
+		Outcomes0[id,col] ~ dnorm(mu_0cond[id,col],tau0cond[col])
+	}
+#	Outcomes0[id,3] ~ dnorm(mu_0cond[3],tau0cond[3])
+#	Outcomes0[id,4] ~ dnorm(mu_0cond[4],tau0cond[4])
+#	Outcomes0[id,5] ~ dnorm(mu_0cond[5],tau0cond[5])
+#	Outcomes0[id,6] ~ dnorm(mu_0cond[6],tau0cond[6])
+#	Outcomes0[id,7] ~ dnorm(mu_0cond[7],tau0cond[7])
+
+	for(int in 2:7){
+		Upper_0[id,int-1] ~ dinterval(Outcomes0[id,int],lim) # captures whether qol_0 is at the upper bound of 1
+	}
+}
+
+# conditional means and variances
+for(id in 1:n0){
+
+		mu_0cond[id,1] <- mu_0[1]
+		mu_0cond[id,2] <- mu_0[2] + (Outcomes0[id,1] - mu_0[1])*Sigma_0[2,1]/Sigma_0[1,1]
+	for(col in 3:7){
+		mu_0cond[id,col] <- mu_0[col] + Sigma_0[col,1:(col-1)]%*%inverse(Sigma_0[1:(col-1),1:(col-1)])%*%(Outcomes0[id,1:(col-1)] - mu_0[1:(col-1)])
+#		mu_0cond[id,4] <- mu_0[4] + (Outcomes0[id,1:3] - Sigma_0[4,1:3]%*%inverse(Sigma_0[1:3,1:3])%*%mu_0[1:3])
+#		mu_0cond[id,5] <- mu_0[5] + (Outcomes0[id,1:4] - Sigma_0[5,1:4]%*%inverse(Sigma_0[1:4,1:4])%*%mu_0[1:4])
+#		mu_0cond[id,6] <- mu_0[6] + (Outcomes0[id,1:5] - Sigma_0[6,1:5]%*%inverse(Sigma_0[1:5,1:5])%*%mu_0[1:5])
+#		mu_0cond[id,7] <- mu_0[7] + (Outcomes0[id,1:6] - Sigma_0[7,1:6]%*%inverse(Sigma_0[1:6,1:6])%*%mu_0[1:6])
+	}
+}
+		tau0cond[1] <- tau0[1]
+		tau0cond[2] <- 1/(Sigma_0[2,2] - Sigma_0[2,1]*Sigma_0[1,2]/Sigma_0[1,1])
+	for(col in 3:7){
+		tau0cond[col] <- 1/(Sigma_0[col,col] - Sigma_0[col,1:(col-1)]%*%inverse(Sigma_0[1:(col-1),1:(col-1)])%*%Sigma_0[1:(col-1),col])
+	}
+#		tau0cond[4] <- 1/(Sigma_0[4,4] - Sigma_0[4,1:3]%*%inverse(Sigma_0[1:3,1:3])%*%Sigma_0[1:3,4])
+#		tau0cond[5] <- 1/(Sigma_0[5,5] - Sigma_0[5,1:4]%*%inverse(Sigma_0[1:4,1:4])%*%Sigma_0[1:4,5])
+#		tau0cond[6] <- 1/(Sigma_0[6,6] - Sigma_0[6,1:5]%*%inverse(Sigma_0[1:5,1:5])%*%Sigma_0[1:5,6])
+#		tau0cond[7] <- 1/(Sigma_0[7,7] - Sigma_0[7,1:6]%*%inverse(Sigma_0[1:6,1:6])%*%Sigma_0[1:6,7])
+
+
+
+# Compute mean QoL
+for(int in 1:6){
+	qol_0_mean[int] = 1 - (1-mu_0[int+1])*pnorm(1,mu_0[int+1],tau0[int+1]) -  sigma0[int+1]*dnorm(1,mu_0[int+1],tau0[int+1])
+}
+
+# Compute total mean QoL with discounting
+qol_tot_0_mean <- 
+0.5*(qol_0_mean[1] + qol_0_mean[2])*3/12 + 
+0.5*(qol_0_mean[2] + qol_0_mean[3])*3/12 + 
+0.5*(qol_0_mean[3] + qol_0_mean[4])*6/12 + 
+0.5*(qol_0_mean[4] + qol_0_mean[5])*(6/12)*(1 + disc_rate) + 
+0.5*(qol_0_mean[5] + qol_0_mean[6])*(6/12)*(1 + disc_rate)
+
+# Compute mean total cost
+cost_0_mean <- exp(mu_0[1] + 0.5*sigma0[1]*sigma0[1])
+
+# Priors
+for(i in 2:7){ mu_0[i] ~ dnorm(0.5,1)}
+
+mu_0[1] ~ dnorm(10,0.01)
+
+# Tau_0 ~ dwish(R,8)
+for(i in 1:7){ 
+	D_0[i,i] ~ dgamma(1,1)
+	L_0[i,i] <- 1
+}
+for(i in 1:6){ 
+	for(j in (i+1):7){
+		D_0[i,j] <- 0
+		L_0[i,j] <- 0
+	}
+}
+for(i in 2:7){
+	for(j in 1:(i-1)){
+		D_0[i,j] <- 0
+		L_0[i,j] ~ dnorm(0,0.01)
+	}
+}
+Tau_0 <- L_0%*%D_0%*%t(L_0)
+
+
+# Compute variance matrix
+Sigma_0 <- inverse(Tau_0)
+for(i in 1:7){
+	sigma0[i] <- Sigma_0[i,i]
+	tau0[i] <- 1/sigma0[i]
+}
+
+
+
+# Arm 1
+for(id in 1:n1){
+	Outcomes1[id,1] ~ dnorm(mu_1[1],tau1[1])
+	for(col in 2:7){
+		Outcomes1[id,col] ~ dnorm(mu_1cond[id,col],tau1cond[col])
+	}
+
+	for(int in 2:7){
+		Upper_1[id,int-1] ~ dinterval(Outcomes1[id,int],lim) # captures whether qol_0 is at the upper bound of 1
+	}
+}
+
+# conditional means and variances
+for(id in 1:n1){
+	mu_1cond[id,1] <- mu_1[1]
+	mu_1cond[id,2] <- mu_1[2] + (Outcomes1[id,1] - mu_1[1])*Sigma_1[2,1]/Sigma_1[1,1]
+
+	for(col in 3:7){
+		mu_1cond[id,col] <- mu_1[col] + Sigma_1[col,1:(col-1)]%*%inverse(Sigma_1[1:(col-1),1:(col-1)])%*%(Outcomes1[id,1:(col-1)] - mu_1[1:(col-1)])
+	}
+	#	mu_1cond[id,3] <- mu_1[3] + (Outcomes1[id,1:2] - Sigma_1[3,1:2]%*%inverse(Sigma_1[1:2,1:2])%*%mu_1[1:2])
+	#	mu_1cond[id,4] <- mu_1[4] + (Outcomes1[id,1:3] - Sigma_1[4,1:3]%*%inverse(Sigma_1[1:3,1:3])%*%mu_1[1:3])
+	#	mu_1cond[id,5] <- mu_1[5] + (Outcomes1[id,1:4] - Sigma_1[5,1:4]%*%inverse(Sigma_1[1:4,1:4])%*%mu_1[1:4])
+	#	mu_1cond[id,6] <- mu_1[6] + (Outcomes1[id,1:5] - Sigma_1[6,1:5]%*%inverse(Sigma_1[1:5,1:5])%*%mu_1[1:5])
+	#	mu_1cond[id,7] <- mu_1[7] + (Outcomes1[id,1:6] - Sigma_1[7,1:6]%*%inverse(Sigma_1[1:6,1:6])%*%mu_1[1:6])
+}
+		tau1cond[1] <- tau1[1]
+		tau1cond[2] <- 1/(Sigma_1[2,2] - Sigma_1[2,1]*Sigma_1[1,2]/Sigma_1[1,1])
+		for(col in 3:7){
+			tau1cond[col] <- 1/(Sigma_1[col,col] - Sigma_1[col,1:(col-1)]%*%inverse(Sigma_1[1:(col-1),1:(col-1)])%*%Sigma_1[1:(col-1),col])
+		}
+
+#		tau1cond[3] <- 1/(Sigma_1[3,3] - Sigma_1[3,1:2]%*%inverse(Sigma_1[1:2,1:2])%*%Sigma_1[1:2,3])
+#		tau1cond[4] <- 1/(Sigma_1[4,4] - Sigma_1[4,1:3]%*%inverse(Sigma_1[1:3,1:3])%*%Sigma_1[1:3,4])
+#		tau1cond[5] <- 1/(Sigma_1[5,5] - Sigma_1[5,1:4]%*%inverse(Sigma_1[1:4,1:4])%*%Sigma_1[1:4,5])
+#		tau1cond[6] <- 1/(Sigma_1[6,6] - Sigma_1[6,1:5]%*%inverse(Sigma_1[1:5,1:5])%*%Sigma_1[1:5,6])
+#		tau1cond[7] <- 1/(Sigma_1[7,7] - Sigma_1[7,1:6]%*%inverse(Sigma_1[1:6,1:6])%*%Sigma_1[1:6,7])
+
+
+
+
+
+# Compute mean QoL
+for(int in 1:6){
+	qol_1_mean[int] = 1 - (1-mu_1[int+1])*pnorm(1,mu_1[int+1],tau1[int+1]) -  sigma1[int+1]*dnorm(1,mu_1[int+1],tau1[int+1])
+}
+
+# Compute total mean QoL with discounting
+qol_tot_1_mean <- 
+0.5*(qol_1_mean[1] + qol_1_mean[2])*3/12 + 
+0.5*(qol_1_mean[2] + qol_1_mean[3])*3/12 + 
+0.5*(qol_1_mean[3] + qol_1_mean[4])*6/12 + 
+0.5*(qol_1_mean[4] + qol_1_mean[5])*(6/12)*(1 + disc_rate) + 
+0.5*(qol_1_mean[5] + qol_1_mean[6])*(6/12)*(1 + disc_rate)
+
+# Compute mean total cost
+cost_1_mean <- exp(mu_1[1] + 0.5*sigma1[1]*sigma1[1])
+
+# Priors
+for(i in 2:7){ mu_1[i] ~ dnorm(0.5,1)}
+
+mu_1[1] ~ dnorm(10,0.01)
+
+# Tau_1 ~ dwish(R,8)
+for(i in 1:7){ 
+	D_1[i,i] ~ dgamma(1,1)
+	L_1[i,i] <- 1
+}
+for(i in 1:6){ 
+	for(j in (i+1):7){
+		D_1[i,j] <- 0
+		L_1[i,j] <- 0
+	}
+}
+for(i in 2:7){
+	for(j in 1:(i-1)){
+		D_1[i,j] <- 0
+		L_1[i,j] ~ dnorm(0,0.01)
+	}
+}
+Tau_1 <- L_1%*%D_1%*%t(L_1)
+
+# Compute variance matrix
+Sigma_1 <- inverse(Tau_1)
+for(i in 1:7){
+	sigma1[i] <- Sigma_1[i,i]
+	tau1[i] <- 1/sigma1[i]
+}
+
+
+
+### Incremental costs and effects
+incr_qol_tot <- qol_tot_1_mean - qol_tot_0_mean
+incr_cost_tot <- cost_1_mean - cost_0_mean
+}
+
+
