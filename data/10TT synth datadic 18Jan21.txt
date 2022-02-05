@@ -1,0 +1,39 @@
+
+-----------------------------------------------------------------------------------------------------------
+              storage   display    value
+variable name   type    format     label      variable label
+-----------------------------------------------------------------------------------------------------------
+pid             int     %10.0g                Patient identifier (randomisation number)
+sex             byte    %8.0g      sex_lb     
+bmi             float   %9.0g                 _0 bmi
+arm             byte    %12.0g     armlb      Trial arm
+agecat3         byte    %9.0g      agecat3lb
+                                              Age in tertiles
+age             byte    %9.0g                 Age
+bmicat          byte    %9.0g      bmicatlb   BMI at baseline
+qol_0           float   %9.0g                 QoL at baseline
+qol_3           float   %9.0g                 QoL - 3M
+qol_6           float   %9.0g                 QoL - 6M
+qol_12          float   %9.0g                 QoL - 12M
+qol_18          float   %9.0g                 QoL - 18M
+qol_24          float   %9.0g                 QoL - 24M
+gpvis           byte    %9.0g                 GP visits lasts 24M
+costint         float   %9.0g                 Intervention cost
+costoth         float   %9.0g                 Other NHS costs, excluding GP, including drug
+------------------------------------------------------------------------------------------------------
+
+.         label list
+bmicatlb:
+           1 <35
+           2 >=35
+agecat3lb:
+           1 18-49
+           2 50-64
+           3 65+
+sex_lb:
+           1 Male
+           2 Female
+armlb:
+           0 Control
+           1 Intervention
+
