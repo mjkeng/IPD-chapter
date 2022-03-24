@@ -19,11 +19,11 @@ For the simplest scenario, let us start with unadjusted models, i.e. let us regr
 ```{r unadjusted}
 
 # modelling difference in costs
-m_cost <- lm(cost_disc ~ arm, data = df_analysis)
+m_cost <- lm(cost ~ arm, data = df_analysis)
 summary(m_cost)$coefficients
 
 # modelling difference in utilities
-m_qol <- lm(qaly_disc ~ arm, data = df_analysis)
+m_qol <- lm(qaly ~ arm, data = df_analysis)
 summary(m_qol)$coefficients
 
 ```
@@ -40,10 +40,10 @@ The syntax for both approaches is presented below:
 ```{r unadjustedTTest}
 
 # t-test to calculate difference in costs
-t.test(cost_disc ~ arm, data = df_analysis)
+t.test(cost ~ arm, data = df_analysis)
 
 # t-test to calculate difference in QALYs
-t.test(qaly_disc ~ arm, data = df_analysis)
+t.test(qaly ~ arm, data = df_analysis)
 
 ```
 
@@ -52,7 +52,7 @@ t.test(qaly_disc ~ arm, data = df_analysis)
 # calculate mean costs & QALYs in each arm
 df_analysis %>%
   group_by(arm) %>%
-  summarise(mean(qaly_disc), mean(cost_disc))
+  summarise(mean(qaly), mean(cost))
 
 ```
 
@@ -65,11 +65,11 @@ For illustration purposes, we will additionally adjust the cost model for baseli
 ### Adjusted analysis ###
 
 # modelling difference in costs (adjusted for age & gender)
-m_cost <- lm(cost_disc ~ arm + sex + age, data = df_analysis)
+m_cost <- lm(cost ~ arm + sex + age, data = df_analysis)
 summary(m_cost)$coefficients
 
 # modelling difference in utilities (adjusted for age & gender)
-m_qol <- lm(qaly_disc ~ arm + sex + age + qol_disc_0, data = df_analysis)
+m_qol <- lm(qaly ~ arm + sex + age + qol_0, data = df_analysis)
 summary(m_qol)$coefficients
 
 ```
@@ -87,7 +87,7 @@ t.test(as.numeric(sex) ~ arm, data = df_analysis)
 t.test(age ~ arm, data = df_analysis)
 
 # imbalance in baseline utilities between treatment arms
-t.test(qol_disc_0 ~ arm, data = df_analysis)
+t.test(qol_0 ~ arm, data = df_analysis)
 
 ```
 
@@ -106,19 +106,19 @@ First we need to summarise cost and utility differences by arm using the fitted 
 # name resulting variable df_inc
 df_inc <- df_analysis %>%
   # predict cost & qaly from regressions
-  mutate(cost_disc_predict = predict(m_cost),
-         qaly_disc_predict = predict(m_qol)) %>%
+  mutate(cost_predict = predict(m_cost),
+         qaly_predict = predict(m_qol)) %>%
   # produce summary statistics by the treatment arm variable
   group_by(arm) %>%
   # summarise mean cost and utility differences
-  summarise(cost_disc = mean(cost_disc_predict), qaly_disc = mean(qaly_disc_predict),
+  summarise(cost = mean(cost_predict), qaly = mean(qaly_predict),
             .groups = 'drop') %>%
   # reshape into a wide format
-  pivot_longer(cols = c("cost_disc", "qaly_disc")) %>%
+  pivot_longer(cols = c("cost", "qaly")) %>%
   pivot_wider(names_from = c(name, arm), values_from = value) %>%
   # calculate incremental cost and utilities
-  mutate(cost_inc = cost_disc_1 - cost_disc_0,
-         qaly_inc = qaly_disc_1 - qaly_disc_0
+  mutate(cost_inc = cost_1 - cost_0,
+         qaly_inc = qaly_1 - qaly_0
   )
 
 # view results
@@ -176,14 +176,14 @@ get_inc <- function(df) {
     # produce summary statistics by the treatment arm variable
     group_by(arm) %>%
     # summarise mean cost and utility differences
-    summarise(cost_disc = mean(cost_disc), qaly_disc = mean(qaly_disc),
+    summarise(cost = mean(cost), qaly = mean(qaly),
               .groups = 'drop') %>%
     # reshape into a wide format
-    pivot_longer(cols = c("cost_disc", "qaly_disc")) %>%
+    pivot_longer(cols = c("cost", "qaly")) %>%
     pivot_wider(names_from = c(name, arm), values_from = value) %>%
     # calculate incremental cost and utilities
-    mutate(cost_inc = cost_disc_1 - cost_disc_0,
-           qaly_inc = qaly_disc_1 - qaly_disc_0
+    mutate(cost_inc = cost_1 - cost_0,
+           qaly_inc = qaly_1 - qaly_0
     )
   
   return(df_inc)

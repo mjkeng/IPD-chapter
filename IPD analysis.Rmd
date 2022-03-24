@@ -24,10 +24,10 @@ knitr::write_bib(c('tableone', 'qwraps2', 'DescTools'), 'packages.bib')
 # Introduction 
 
 
-Analysis using individual patient data come with the benefits afforded by the type of analysis that can be performed, and the ability to capture patient heterogeneity. 
+Analysis using individual patient data comes with the benefits afforded by the type of analysis that can be performed, and the ability to capture patient heterogeneity. 
 However, there are practical and methodological challenges involved. 
 Practically, there could be issues with privacy, storage, and computational power required for handling and analysing large datasets. 
-Methodological challenges includes handling of missing data, choice of models to use for analysis etc. 
+Methodological challenges include handling of missing data, choice of models to use for analysis etc. 
 
 Data pre-processing is a critical component of data analysis, and is typically needed to derive variables of interest required for analysis.
 It is unfortunately not always straight-forward, and can be time-consuming. 
@@ -45,14 +45,10 @@ In this chapter, we will demonstrate how to
 
 # Case study: Cost-utility analysis of the Ten Top Tips trial
 
-The Ten Top Tips (10TT) trial was a two-arm, individually randomised, controlled trial of a weight-loss intervention for obese adults attending general practices in the UK [@beeken_brief_2017]. 
-537 participants in the trial were randomised to receive either the 10TT intervention (n = 267), or usual care (n = 270) from their general practices.
+In this chapter, we will demonstrate the process of performing a within-trial cost-utility analysis using a simplified, synthetic dataset `10TT_synth_280921.csv` generated based on the Ten Top Tips (10TT) trial design [@beeken_brief_2017]. _This merely serves as a case study to illustrate the concepts of using individual patient data for analysis so methods and results may deviate from the published within-trial cost-effectiveness analysis of the trial [@patel_costeffectiveness_2018]._ 
+
+The 10TT trial was a two-arm, individually randomised, controlled trial of a weight-loss intervention for obese adults attending general practices in the UK. 537 participants in the trial were randomised to receive either the 10TT intervention, or usual care from their general practices.
 The intervention was designed to encourage forming of good habits through self-help materials including a leaflet with ten simple weight-control tips and a logbook to record participant's own progress. 
-
-In this chapter, we will use the 10TT trial as a case study to demonstrate how to perform cost-effectiveness analysis using individual patient data. 
-For illustration, we will be replicating the within-trial cost-effectiveness analysis of the Ten Top Tips trial [@patel_costeffectiveness_2018] using a simplified, synthetic dataset `10TT_synth_280921.csv` generated based on the trial.
-
-__Is it possible to match the number of participants in each arm with the actual trial (currently n = 265 for tx; n = 272 for placebo in synthetic data)__
 
 ```{r}
 
@@ -71,12 +67,11 @@ head(df, 5)
 
 ```
 
-We will perform a within-trial cost-utility analysis to compare the costs and outcomes (i.e. QALYs) associated with 10TT `arm = 1` and usual care `arm = 0`.
+We will perform a within-trial cost-utility analysis to compare the costs and outcomes (i.e. QALYs) associated with 10TT and usual care.
 The primary outcomes are incremental costs and effects and the incremental net monetary benefit (NMB) of 10TT versus usual care over the 2-year trial follow-up period.
-A 3.5% discount rate will apply to costs and outcomes in the second year, and we consider cost-effectiveness thresholds of £20,000 and £30,000.
+Because of the short duration of the trial, no discounting will be applied. 
+We consider cost-effectiveness thresholds of £20,000 and £30,000.
 For the purpose of this chapter, we will be performing a complete case analysis so missing data will be excluded (more details on handling of missing data is available in the missing data chapter [@ref]). 
-
-__I think better to look at missing data pattern within missing data chapter? packages/functions for dealing with missing data possibly introduced in that chapter__
 
 
 ## Descriptive statistics 
@@ -93,15 +88,35 @@ It is possible to use base R or tidyverse to produce descriptive statistics, whi
 
 ### Baseline demographics 
 
-Here, we summarise participants' demographics at baseline, including sex, age, and BMI category `bmicat`, separately for participants in the 10TT arm and the usual care arm.
-
-__add definition of BMI cat__
+Here, we summarise participants' demographics at baseline, including sex (`sex = 1` Male, `sex = 2` Female), age, and BMI category (`bmicat = 1` < 35kg/m$^2$, `bmicat = 2` $\ge$ 35kg/m$^2$), separately for participants in the 10TT arm (`arm = 1`) and the usual care arm (`arm = 0`).
 
 ```{r}
 
 tableone::CreateTableOne(vars = c("sex", "age", "bmicat"), strata = "arm", data = df, test = F)
 
 ```
+
+---
+
+Extra notes
+
+Categorical variables in the dataset were coded in numerical values by default. 
+This may be useful when you have a reference level in mind or for variables with natural ordering (e.g. from low to high BMI), since numerical values have natural ordering. 
+However, sometimes, it might be more intuitive to have labels instead of numerical values. 
+The levels are ordered alpha-numerically by default, but it is possible to specify your own order for the levels.  
+This can be changed accordingly in the data frame, which we will demonstrate with the `arm` variable in the dataset.  
+
+```{r}
+
+df_label <- df 
+
+df_label$arm <- factor(df_label$arm, levels = c("1", "0"), labels = c("10TT", "Usual Care"), ordered = T)
+
+tableone::CreateTableOne(vars = c("sex", "age", "bmicat"), strata = "arm", data = df_label, test = F)
+
+```
+
+---
 
 
 ### Utilities & QALYs
@@ -113,13 +128,38 @@ Participants completed the EQ-5D-3L questionnaire during study visits at baselin
 ## Example of QoL data
 
 df_qol <- df %>% 
-  select(id, arm, contains("qol"))
+  select(id, arm, contains("qol")) %>% 
+  ## convert dataframe from wide to long format
+  pivot_longer(contains("qol"), names_to = "month", names_prefix = "qol_", names_transform = list(month = as.integer), values_to = "qol")
 
-head(df_qol, 3)
+head(df_qol, 5)
 
 ```
 
-We apply 3.5% discounting to the QoL in the second year. 
+
+```{r, fig.cap = "Trend in QoL over time in each treatment arm"}
+
+df_plot_qol <- df_qol %>% 
+  group_by(arm, month) %>% 
+  summarise(qol_mean = mean(qol, na.rm = T), qol_se = sqrt(var(qol, na.rm = T)/length(qol)))
+
+ggplot(data = df_plot_qol, aes(color = arm, group = arm)) + 
+  geom_point(aes(x = month, y = qol_mean, shape = arm)) + 
+  geom_line(aes(x = month, y = qol_mean, group = arm, linetype = arm)) + 
+  geom_errorbar(aes(x = month, ymin = qol_mean - 1.96 * qol_se, ymax = qol_mean + 1.96 * qol_se)) + 
+  labs(x = "Month", y = "Mean QoL at each study visit (95% CI)") + 
+  scale_x_continuous(breaks = c(0, 3, 6, 12, 18, 24))
+
+# ggplot(data = df_qol, aes(x = month, y = qol, group = arm, color = arm)) +
+#   stat_summary(geom = "pointrange", fun.data = "mean_cl_boot", na.rm = T, conf.int = .95, B = 1000)
+
+```
+
+---
+
+Extra notes 
+
+Since the trial had a relatively short duration (2 years), no discounting was applied for the analysis. However, discounting is typically required. Here, we demonstrate an example if we were to apply a 3.5% discount rate to quality of life data by pre-defining a function `disc` to perform discounting. 
 
 ```{r}
 
@@ -132,33 +172,17 @@ disc <- function(x, year, disc_rate = 0.035) {
 
 ## Apply discounting to QoL data
 df_qol_disc <- df_qol %>% 
-  ## convert dataframe from wide to long format
-  pivot_longer(contains("qol"), names_to = "month", names_prefix = "qol_", names_transform = list(month = as.integer), values_to = "qol") %>% 
   ## convert month to follow-up year; set baseline to be in year 1
   mutate(year = pmax(1, ceiling(month/12))) %>% 
+  ## apply discounting
   mutate(qol_disc = disc(qol, year)) 
 
-head(df_qol_disc, 3)
+df_qol_disc %>% 
+  filter(id == 3)
 
 ```
 
-```{r, fig.cap = "Trend in QoL (discounted) over time in each treatment arm"}
-
-df_plot_qol <- df_qol_disc %>% 
-  group_by(arm, month) %>% 
-  summarise(qol_disc_mean = mean(qol_disc, na.rm = T), qol_disc_se = sqrt(var(qol_disc, na.rm = T)/length(qol_disc)))
-
-ggplot(data = df_plot_qol, aes(color = arm, group = arm)) + 
-  geom_point(aes(x = month, y = qol_disc_mean, shape = arm)) + 
-  geom_line(aes(x = month, y = qol_disc_mean, group = arm, linetype = arm)) + 
-  geom_errorbar(aes(x = month, ymin = qol_disc_mean - 1.96 * qol_disc_se, ymax = qol_disc_mean + 1.96 * qol_disc_se)) + 
-  labs(x = "Month", y = "Mean QoL (discounted) at each study visit (95% CI)") + 
-  scale_x_continuous(breaks = c(0, 3, 6, 12, 18, 24))
-
-# ggplot(data = df_qol_disc, aes(x = month, y = qol_disc, group = arm, color = arm)) +
-#   stat_summary(geom = "pointrange", fun.data = "mean_cl_boot", na.rm = T, conf.int = .95, B = 1000)
-
-```
+---
 
 
 A utility profile was constructed for participants assuming a straight-line relation between their utility values at each measurement point. 
@@ -166,39 +190,39 @@ QALYs for every patient from baseline to 2 years were calculated as the area und
 
 ```{r, fig.cap="Example of utility profile for participant ID 3. QALYs is the shaded region under the utility profile."}
 
-## Example of discounted QoL data for participant id 3
+## Example of QoL data for participant id 3
 
-df_qol_disc %>% 
+df_qol %>% 
   filter(id == 3)
 
-ggplot(data = df_qol_disc %>% filter(id == 3)) + 
-  geom_line(aes(x = month, y = qol_disc)) + 
-  geom_ribbon(aes(x = month, ymax = qol_disc, ymin = 0), fill = "red", alpha = 0.2) + 
-  labs(x = "Month", y = "QoL (discounted)") + 
-  scale_x_continuous(breaks = c(0, 3, 6, 12, 18, 24)) 
+ggplot(data = df_qol %>% filter(id == 3)) + 
+  geom_line(aes(x = month, y = qol)) + 
+  geom_ribbon(aes(x = month, ymax = qol, ymin = 0), fill = "red", alpha = 0.2) + 
+  labs(x = "Month", y = "QoL") + 
+  scale_x_continuous(breaks = c(0, 3, 6, 12, 18, 24))
 
 ```
 
 ```{r}
 
-df_qaly_disc <- df_qol_disc %>% 
+df_qaly <- df_qol %>% 
   group_by(id) %>% 
   ## exclude participants with missing qol at any visit
-  filter(!any(is.na(qol_disc))) %>% 
+  filter(!any(is.na(qol))) %>% 
   # summarise(qaly = sum(diff(month) * (head(qol_disc, -1) + tail(qol_disc, -1)))) ## if base R
   ## calculate area under the utility profile
-  summarise(qaly_disc = DescTools::AUC(x = month, y = qol_disc, method = "trapezoid") / 12) 
+  summarise(qaly = DescTools::AUC(x = month, y = qol, method = "trapezoid") / 12) 
 
-summary(df_qaly_disc$qaly_disc)
+summary(df_qaly$qaly)
 
 ```
 
 ```{r}
 
-df_qol_analysis <- df_qol_disc %>% 
-  select(id, month, qol_disc) %>% 
-  pivot_wider(names_from = "month", values_from = "qol_disc", names_prefix = "qol_disc_") %>% 
-  left_join(df_qaly_disc, by = "id")
+df_qol_analysis <- df_qol %>% 
+  select(id, month, qol) %>% 
+  pivot_wider(names_from = "month", values_from = "qol", names_prefix = "qol_") %>% 
+  left_join(df_qaly, by = "id")
   
 ```
 
@@ -224,18 +248,30 @@ head(df_cost, 3)
 
 df_cost_analysis <- df_cost %>% 
   select(id, totalcost) %>% 
-  rename(cost_disc = totalcost)
+  rename(cost = totalcost)
 
 ```
 
-__I assume costoth have already accounted for discounting & costint incurred in first year so no discounting needed. What about gpvis? The way totalcost is calculated now assumes all GP visits in first year. Possibly split gpvis into different years? also suggest removing total cost from raw data to demonstrate the calculation with discounting.__
+---
+
+Extra notes 
+
+The dataset already contains the varaible total cost `totalcost`. We can do a quick check to see if this has been calculated correctly. 
+
+```{r}
+
+all.equal(df_cost$gpvis * 45 + df_cost$costint + df_cost$costoth, df_cost$totalcost)
+
+```
+
+---
 
 
 ```{r, fig.cap= "Distribution of cost"}
 
 ggplot(data = df_cost_analysis) + 
-  geom_histogram(aes(x = cost_disc), binwidth = 250) + 
-  labs(x = "Cost (discounted)")
+  geom_histogram(aes(x = cost), binwidth = 250) + 
+  labs(x = "Cost")
 
 ```
 
@@ -253,7 +289,7 @@ df_analysis_withmissing <- df %>%
   left_join(df_cost_analysis, by = "id")
 
 df_analysis_withmissing %>% 
-  summarise(across(c("qaly_disc", "cost_disc"), ~ sum(is.na(.))))
+  summarise(across(c("qaly", "cost"), ~ sum(is.na(.))))
 
 ```
 
@@ -272,7 +308,7 @@ tableone::CreateTableOne(strata = "arm", data = df_analysis %>% select(-id), tes
 ```{r fig.cap= "Total cost and QALYs over 2 years of follow-up stratified by treatment arm"}
 
 p <- ggplot(data = df_analysis, aes(group = arm, color = arm, fill = arm)) + 
-  geom_point(aes(x = cost_disc, y = qaly_disc)) + 
+  geom_point(aes(x = cost, y = qaly)) + 
   theme(legend.position = "bottom") + 
   labs(x = "Total cost (£)", y = "QALYs")
 
@@ -280,12 +316,13 @@ ggExtra::ggMarginal(p, groupColour = T, groupFill = T, alpha = 0.25)
 
 ```
 
+
 ```{r child = 'frequentist.Rmd'}
 ```
 
 
-```{r child = 'bayesian.Rmd'}
-```
+<!-- ```{r child = 'bayesian.Rmd'} -->
+<!-- ``` -->
 
 
 ### References 
