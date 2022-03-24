@@ -28,26 +28,28 @@ summary(m_qol)$coefficients
 
 ```
 
-The models suggest an incremental difference of `r round(as.numeric(m_cost$coefficients["(arm)"]))` pounds and `r round(as.numeric(m_qol$coefficients["(arm)"]), digits = 2)` QALYs between the arms, which can be extracting using the code `round(as.numeric(m_cost$coefficients["(arm)"]))` and `round(as.numeric(m_qol$coefficients["(arm)"]), digits = 2)` respectively.
+The models suggest an incremental difference of `r round(as.numeric(m_cost$coefficients["arm1"]))` pounds and `r round(as.numeric(m_qol$coefficients["arm1"]), digits = 2)` QALYs between the arms, which can be extracting using the code `round(as.numeric(m_cost$coefficients["arm1"]))` and `round(as.numeric(m_qol$coefficients["arm1"]), digits = 2)` respectively.
 
-_Note._ Results from such unadjusted models could also be extracted using one the following methods: 
+_Note._ Results from such unadjusted models could also be extracted 
 
-* By applying two-sampled t-tests using the `t.test` command:
+* by applying two-sampled t-tests using the `t.test` command; or
+* by calculating mean costs and QALYs in each arm (and finding the difference).
+
+The syntax for both approaches is presented below:
 
 ```{r unadjustedTTest}
 
-# difference in costs
+# t-test to calculate difference in costs
 t.test(cost_disc ~ arm, data = df_analysis)
 
-# difference in QALYs
+# t-test to calculate difference in QALYs
 t.test(qaly_disc ~ arm, data = df_analysis)
 
 ```
 
-* By calculating mean costs and QALYs in each arm (and finding the difference): 
-
 ```{r unadjustedManual}
 
+# calculate mean costs & QALYs in each arm
 df_analysis %>%
   group_by(arm) %>%
   summarise(mean(qaly_disc), mean(cost_disc))
@@ -56,7 +58,7 @@ df_analysis %>%
 
 Often, however, it is deemed important to adjust models for further characteristics, for example because of a baseline imbalance. In this case, same `lm` syntax could be used with relevant independent predictors added to the right-hand side of the formula. 
 
-For illustration purposes, we will additionally adjust the cost model for baseline age and gender, and utilities model for baseline age, gender and utility at baseline
+For illustration purposes, we will additionally adjust the cost model for baseline age and gender, and utilities model for baseline age, gender and utility at baseline:
 
 ```{r adjusted}
 
@@ -97,15 +99,19 @@ __SUR modelling??__
 
 We will now calculate the monetary net benefit using the £20,000 and £30,000 willingness-to-pay thresholds. 
 
-First we need to summarise cost and utility differences by arm: __Or should this be done via the m_cost and m_qol models?__
+First we need to summarise cost and utility differences by arm using the fitted models:
 
 ```{r dfInc}
 
+# name resulting variable df_inc
 df_inc <- df_analysis %>%
+  # predict cost & qaly from regressions
+  mutate(cost_disc_predict = predict(m_cost),
+         qaly_disc_predict = predict(m_qol)) %>%
   # produce summary statistics by the treatment arm variable
   group_by(arm) %>%
   # summarise mean cost and utility differences
-  summarise(cost_disc = mean(cost_disc), qaly_disc = mean(qaly_disc),
+  summarise(cost_disc = mean(cost_disc_predict), qaly_disc = mean(qaly_disc_predict),
             .groups = 'drop') %>%
   # reshape into a wide format
   pivot_longer(cols = c("cost_disc", "qaly_disc")) %>%
@@ -144,9 +150,9 @@ Thus, the NMB of the 10TT intervention vs usual care is `r df_nb %>% filter(r ==
 
 ### Bootstrap and uncertainty
 
-__Discussion point: perhaps use a package here, eg boot?__
-
 In this section we will perform non-parametric bootstrap by sampling participants with replacement. For each sampling loop, `r nrow(df_analysis)`  participants will be sampled, where `r nrow(df_analysis)` is the number of participants in our original (complete case) dataset and can be obtained by running the `nrow(df_analysis)` command. The analysis from the previous section will be repeated on this sampled dataset. We will perform 1,000 such sampling loops and summarise results to obtain confidence intervals around the estimates using the percentile method [@gray2011applied].
+
+For the sake of completeness, the analyses will be done using only `tidyverse` commands. However, the reader may wish to explore purpose-built bootstrapping packages, such as [boot](https://cran.r-project.org/web/packages/boot/index.html), which could be useful for simple procedures. __I still prefer the current approach as it shows exactly what's being done and should be more understandable by a beginner. However, I appreciate packages could be useful... Time/space permitting, I may insert code using boot syntax and move into a standalone note__
 
 For reproducibility purposes, we start with setting the seed of R's random number generator using the command `set.seed`. This way we can ensure when the code is run again, participants are sampled in the same way and therefore the same results are obtained.
 
@@ -225,7 +231,7 @@ head(df_boot, 3)
 
 ```
 
-_Note_ The above calculations are performed in a sequential loop but are independent of each other. It is therefore possible to parallelise the code, e.g. using the `foreach` command. __should we provide the code or is this  becoming too technical?__
+_Note_ The above calculations are performed in a sequential loop but are independent of each other. It is therefore possible to parallelise the code, e.g. using the [`foreach` package](https://cran.r-project.org/web/packages/foreach/vignettes/foreach.html).
 
 Having bootstrapped the dataset, we are ready to calculate the net monetary benefit. We will want to construct the cost-effectiveness acceptability curve, and therefore we will calculate the NMB for a range of thresholds.
 
@@ -262,36 +268,41 @@ get_bootstrap_ci <- function(vec, level = 0.95) {
 
 ```
 
-We are now ready to generate confidence intervals: __To rewrite as a table; will make it shorter but also illustrate how to produce a table__
+We are now ready to generate confidence intervals. For example, let us add uncertainty estimates to the point estimates in the `df_inc` dataset:
 
-```{r ci}
- 
-### Cost differences ###
+```{r}
 
-# in usual care arm
-get_bootstrap_ci(df_boot$cost_disc_0)
-# in intervention arm
-get_bootstrap_ci(df_boot$cost_disc_1)
-# incremental
-get_bootstrap_ci(df_boot$cost_inc)
+# create a copy of the original dataset (optional step)
+df_inc_with_ci <- df_inc
 
-### utility differences ###
+# loop through all columns of df_inc
+for (colname in colnames(df_inc)) {
+  
+  # uncertainty estimate for a given columns
+  v_ci <- get_bootstrap_ci(df_boot[, colname])
+  
+  # numbers of digits to round the output to
+  # 0 for cost columns; 1 for QALY columns
+  # could re-write this as a function too
+  digits <- if (grepl("cost", colname)) 0 else
+    if (grepl("qaly", colname)) 1
+  
+  # add uncertainty estimate to the point estimate
+  df_inc_with_ci[, colname] <- str_c(
+    round(df_inc_with_ci[, colname], digits = digits), 
+    " (", 
+    round(v_ci$l, digits = digits), 
+    "; ", 
+    round(v_ci$u, digits = digits),
+    ")"
+  )
+}
 
-# in usual care arm
-get_bootstrap_ci(df_boot$qaly_disc_0)
-# in intervention arm
-get_bootstrap_ci(df_boot$qaly_disc_1)
-# incremental
-get_bootstrap_ci(df_boot$qaly_inc)
-
-### net benefit ###
-
-# Net benefit at £20,000 threshold
-get_bootstrap_ci(df_boot %>% filter(r == 20000) %>% select(nb) %>% pull())
-# Net benefit at £30,000 threshold
-get_bootstrap_ci(df_boot %>% filter(r == 30000) %>% select(nb) %>% pull())
+# view the output and potentially save as a .csv
+df_inc_with_ci
 
 ```
+__Re-write using pivot_longer and automatic re-naming? Or is that too advanced?__
 
 As the last step, let us plot the bootstrap estimates on the the cost-effectiveness plane.
 
@@ -360,4 +371,4 @@ p
 
 ```
 
-As expected, the probability of the 10TT intervention to be cost-effective is very low at any willingness-to-pay threshold up to £100,000
+As expected, the probability of the 10TT intervention to be cost-effective is very low at any willingness-to-pay threshold up to £100,000.
