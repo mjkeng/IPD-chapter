@@ -103,7 +103,7 @@ Extra notes
 Categorical variables in the dataset were coded in numerical values by default. 
 This may be useful when you have a reference level in mind or for variables with natural ordering (e.g. from low to high BMI), since numerical values have natural ordering. 
 However, sometimes, it might be more intuitive to have labels instead of numerical values. 
-The levels are ordered alpha-numerically by default, but it is possible to specify your own order for the levels.  
+The levels are ordered alpha-numerically by default, but it is possible to specify your own order for the levels.
 This can be changed accordingly in the data frame, which we will demonstrate with the `arm` variable in the dataset.  
 
 ```{r}
