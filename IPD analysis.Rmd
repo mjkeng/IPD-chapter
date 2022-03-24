@@ -142,7 +142,6 @@ head(df_qol_disc, 3)
 
 ```
 
-
 ```{r, fig.cap = "Trend in QoL (discounted) over time in each treatment arm"}
 
 df_plot_qol <- df_qol_disc %>% 
@@ -281,24 +280,12 @@ ggExtra::ggMarginal(p, groupColour = T, groupFill = T, alpha = 0.25)
 
 ```
 
-
-
-
-
-
-
-
-
-
-
 ```{r child = 'frequentist.Rmd'}
 ```
 
 
 ```{r child = 'bayesian.Rmd'}
 ```
-
-
 
 
 ### References 
