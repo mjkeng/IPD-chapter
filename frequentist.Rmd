@@ -6,13 +6,19 @@ In this section, a cost-utility analysis is undertaken, comparing the costs and 
 
 As per [@patel_costeffectiveness_2018], we will compare differences in mean costs and utilities using linear regression models relating participants' outcomes of interest (i.e. costs or change in QALYs at 2 years) with important variables.
 
+---
+
+Extra notes
+
 A _linear regression_ is a type of predictive analysis model that estimates the relationship between an independent variable (e.g. cost at 2 years) and one or more explanatory (dependent) variables (e.g. participant's trial arm or baseline age). In mathematical terms, if $y$ denotes the independent variable, $x_1, \ldots, x_n$ are the independent variables and there are $k$ observation vectors $\{y_i, x_{i1}, \ldots, x_{in} \}_{i=1}^k$, the relationship between $y$ and $x_i$ is assumed to be of the form
 
 $$y_i = \beta_0 + \beta_1 x_{i1} + \cdots + \beta_n x_{in} + \epsilon_i, \quad i = 1, \ldots, k.$$
 
-Here, $\epsilon$ is the _noise_ variable, an unobserved random variable and $\beta_i$ are the coefficients quantifying the effect of the $i$th predictor $x_i$ onto the outcome variable $y$ while holding all other predictors constant. Specifically, the value of the coefficient $\beta_i$ represents the change in the outcome $y$ if the value of $x_i$ is increased by one unit, while all other parameters remain unchanged.
+Here, $\epsilon$ is the _noise_ variable, an unobserved random variable, and $\beta_i$ are the coefficients quantifying the effect of the $i$th predictor $x_i$ onto the outcome variable $y$ while holding all other predictors constant. Specifically, the value of the coefficient $\beta_i$ represents the change in the outcome $y$ if the value of $x_i$ is increased by one unit, while all other parameters remain unchanged.
 
 Further details describing the use of the `lm` command, including possible arguments, output values as well as references to the topic of linear regression in general, can be found on the [`lm` help webpage](https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/lm)
+
+---
 
 For the simplest scenario, let us start with unadjusted models, i.e. let us regress participants' outcomes of interest on their treatment arm only:
 
@@ -30,22 +36,7 @@ summary(m_qol)$coefficients
 
 The models suggest an incremental difference of `r round(as.numeric(m_cost$coefficients["arm1"]))` pounds and `r round(as.numeric(m_qol$coefficients["arm1"]), digits = 2)` QALYs between the arms, which can be extracting using the code `round(as.numeric(m_cost$coefficients["arm1"]))` and `round(as.numeric(m_qol$coefficients["arm1"]), digits = 2)` respectively.
 
-_Note._ Results from such unadjusted models could also be extracted 
-
-* by applying two-sampled t-tests using the `t.test` command; or
-* by calculating mean costs and QALYs in each arm (and finding the difference).
-
-The syntax for both approaches is presented below:
-
-```{r unadjustedTTest}
-
-# t-test to calculate difference in costs
-t.test(cost ~ arm, data = df_analysis)
-
-# t-test to calculate difference in QALYs
-t.test(qaly ~ arm, data = df_analysis)
-
-```
+_Note._ Results from such unadjusted models could also be extracted by calculating mean costs and QALYs in each arm (and finding the difference):
 
 ```{r unadjustedManual}
 
@@ -56,25 +47,7 @@ df_analysis %>%
 
 ```
 
-Often, however, it is deemed important to adjust models for further characteristics, for example because of a baseline imbalance. In this case, same `lm` syntax could be used with relevant independent predictors added to the right-hand side of the formula. 
-
-For illustration purposes, we will additionally adjust the cost model for baseline age and gender, and utilities model for baseline age, gender and utility at baseline:
-
-```{r adjusted}
-
-### Adjusted analysis ###
-
-# modelling difference in costs (adjusted for age & gender)
-m_cost <- lm(cost ~ arm + sex + age, data = df_analysis)
-summary(m_cost)$coefficients
-
-# modelling difference in utilities (adjusted for age & gender)
-m_qol <- lm(qaly ~ arm + sex + age + qol_0, data = df_analysis)
-summary(m_qol)$coefficients
-
-```
-
-To decide on the set of predictors, we could check for baseline imbalances in each potentially important characteristic between the treatment arms using the two-sampled `t.test` command:
+Often, however, it is deemed important to adjust models for further characteristics, for example because of a baseline imbalance between the treatment arms. We can check for the imbalance using the two-sampled `t.test` command:
 
 ```{r imbalances}
 
@@ -93,7 +66,43 @@ t.test(qol_0 ~ arm, data = df_analysis)
 
 As it happens, there is no evidence for baseline imbalances in the dataset. However, even when this is the case, it may still be important to adjust for certain characteristics.
 
-__SUR modelling??__
+For illustration purposes, we will therefore additionally adjust the cost model for baseline age and gender, and utilities model for baseline age, gender and utility at baseline. This can be done using the same `lm` syntax, but with relevant independent predictors added to the right-hand side of the formula:
+
+```{r adjusted}
+
+### Adjusted analysis ###
+
+# modelling difference in costs (adjusted for age & gender)
+m_cost <- lm(cost ~ arm + sex + age, data = df_analysis)
+summary(m_cost)$coefficients
+
+# modelling difference in utilities (adjusted for age & gender)
+m_qol <- lm(qaly ~ arm + sex + age + qol_0, data = df_analysis)
+summary(m_qol)$coefficients
+
+```
+
+_Note._ Whilst this is not an approach taken in this chapter, allowing for correlation between individual costs and utilities may be important, in which case seemingly unrelated regressions (SUR) model could be used. In R, SUR equations can be modelled using functions from the [systemfit](https://cran.r-project.org/web/packages/systemfit/systemfit.pdf) package. An example code is provided below:
+
+```{r adjustedSUR}
+
+# define equations to be fitted
+eq_cost <- cost ~ arm + sex + age
+eq_qol <- qaly ~ arm + sex + age + qol_0
+
+# save equations into a list (optional step)
+system <- list(cost = eq_cost, qol = eq_qol)
+
+# fit SUR model
+# note that in the current version, default estimation method is OLS
+# therefore "method" argument needs to be set to "SUR"
+m_sur <- systemfit::systemfit(system, data = df_analysis, method = "SUR")
+
+# check the output
+# coefficients differ very slighly from m_cost and m_qol
+summary(m_sur)
+
+```
 
 ### Net monetary benefit
 
