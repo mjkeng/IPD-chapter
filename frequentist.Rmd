@@ -1,6 +1,6 @@
 ## Frequentist estimation
 
-In this section, a cost-utility analysis is undertaken, comparing the costs and outcomes (ie QALYs) associated with 10TT versus usual care. The primary outcomes are incremental costs and effects and the incremental net monetary benefit (NMB) of 101TT versus usual care at 2 years, as per trial follow-up. No extrapolation is undertaken and cost-effectiveness thresholds of £20,000 and £30,000 are being considered.
+In this section, a cost-utility analysis is undertaken, comparing the costs and outcomes (i.e. QALYs) associated with 10TT versus usual care. The primary outcomes are incremental costs and effects and the incremental net monetary benefit (NMB) of 101TT versus usual care at 2 years, as per trial follow-up. No extrapolation is undertaken, and cost-effectiveness thresholds of £20,000 and £30,000 are being considered.
 
 ### Cost and utility equations
 
@@ -20,7 +20,7 @@ Further details describing the use of the `lm` command, including possible argum
 
 ---
 
-For the simplest scenario, let us start with unadjusted models, i.e. let us regress participants' outcomes of interest on their treatment arm only:
+For the simplest scenario, let us start with unadjusted models, i.e. regress participants' outcomes of interest on their treatment arm only:
 
 ```{r unadjusted}
 
@@ -34,7 +34,7 @@ summary(m_qol)$coefficients
 
 ```
 
-The models suggest an incremental difference of `r round(as.numeric(m_cost$coefficients["arm1"]))` pounds and `r round(as.numeric(m_qol$coefficients["arm1"]), digits = 2)` QALYs between the arms, which can be extracting using the code `round(as.numeric(m_cost$coefficients["arm1"]))` and `round(as.numeric(m_qol$coefficients["arm1"]), digits = 2)` respectively.
+The models suggest an incremental difference of £`r round(as.numeric(m_cost$coefficients["arm1"]))` and `r round(as.numeric(m_qol$coefficients["arm1"]), digits = 2)` QALYs between the arms, which can be extracting using the code `round(as.numeric(m_cost$coefficients["arm1"]))` and `round(as.numeric(m_qol$coefficients["arm1"]), digits = 2)` respectively.
 
 _Note._ Results from such unadjusted models could also be extracted by calculating mean costs and QALYs in each arm (and finding the difference):
 
@@ -66,7 +66,7 @@ t.test(qol_0 ~ arm, data = df_analysis)
 
 As it happens, there is no evidence for baseline imbalances in the dataset. However, even when this is the case, it may still be important to adjust for certain characteristics.
 
-For illustration purposes, we will therefore additionally adjust the cost model for baseline age and gender, and utilities model for baseline age, gender and utility at baseline. This can be done using the same `lm` syntax, but with relevant independent predictors added to the right-hand side of the formula:
+For illustration purposes, we will additionally adjust the cost model for baseline age and gender, and utilities model for baseline age, gender and utility at baseline. This can be done using the same `lm` syntax, but with relevant independent predictors added to the right-hand side of the formula:
 
 ```{r adjusted}
 
@@ -82,7 +82,7 @@ summary(m_qol)$coefficients
 
 ```
 
-_Note._ Whilst this is not an approach taken in this chapter, allowing for correlation between individual costs and utilities may be important, in which case seemingly unrelated regressions (SUR) model could be used. In R, SUR equations can be modelled using functions from the [systemfit](https://cran.r-project.org/web/packages/systemfit/systemfit.pdf) package. An example code is provided below:
+_Note._ Whilst this is not an approach taken in this chapter, allowing for correlation between individual costs and utilities may be important, in which case seemingly unrelated regressions (SUR) model could be used. In R, SUR equations can be modelled using functions from the [systemfit](https://cran.r-project.org/web/packages/systemfit/systemfit.pdf) package. An example code is provided below.
 
 ```{r adjustedSUR}
 
@@ -155,13 +155,13 @@ df_nb
 
 ```
 
-Thus, the NMB of the 10TT intervention vs usual care is `r df_nb %>% filter(r == 20000) %>% select(nb) %>% pull() %>% round()` with the £20,000 willingness-to-pay threshold (obtained by code `df_nb %>% filter(r == 20000) %>% select(nb) %>% pull() %>% round()`), and `r df_nb %>% filter(r == 30000) %>% select(nb) %>% pull() %>% round()`  with the £30,000 willingness-to-pay threshold.
+Thus, the net monetary benefit of the 10TT intervention vs usual care is `r df_nb %>% filter(r == 20000) %>% select(nb) %>% pull() %>% round()` with the £20,000 willingness-to-pay threshold (obtained by code `df_nb %>% filter(r == 20000) %>% select(nb) %>% pull() %>% round()`), and `r df_nb %>% filter(r == 30000) %>% select(nb) %>% pull() %>% round()`  with the £30,000 willingness-to-pay threshold.
 
 ### Bootstrap and uncertainty
 
-In this section we will perform non-parametric bootstrap by sampling participants with replacement. For each sampling loop, `r nrow(df_analysis)`  participants will be sampled, where `r nrow(df_analysis)` is the number of participants in our original (complete case) dataset and can be obtained by running the `nrow(df_analysis)` command. The analysis from the previous section will be repeated on this sampled dataset. We will perform 1,000 such sampling loops and summarise results to obtain confidence intervals around the estimates using the percentile method [@gray2011applied].
+In this section we will perform non-parametric bootstrap by sampling participants with replacement. For each sampling loop, `r nrow(df_analysis)`  participants will be sampled, where `r nrow(df_analysis)` is the number of participants in our original (complete case) dataset and can be obtained by running the `nrow(df_analysis)` command. The analysis from the previous section will be repeated on this sampled dataset. We will perform 200 such sampling loops and summarise results to obtain confidence intervals around the estimates using the percentile method [@gray2011applied]. 
 
-For the sake of completeness, the analyses will be done using only `tidyverse` commands. However, the reader may wish to explore purpose-built bootstrapping packages, such as [boot](https://cran.r-project.org/web/packages/boot/index.html), which could be useful for simple procedures. __I still prefer the current approach as it shows exactly what's being done and should be more understandable by a beginner. However, I appreciate packages could be useful... Time/space permitting, I may insert code using boot syntax and move into a standalone note__
+_Note._ The number of 200 sampling loops was chosen as a compromise between the speed of the execution of the illustrative code and robustness of the results. Typically, 1,000 or more bootstrap samples are required.
 
 For reproducibility purposes, we start with setting the seed of R's random number generator using the command `set.seed`. This way we can ensure when the code is run again, participants are sampled in the same way and therefore the same results are obtained.
 
@@ -171,16 +171,16 @@ set.seed(123)
 
 ```
 
-For each loop, sampling will be done using the `sample_n` command from the `tidyverse` package. Before we do the sampling however, let us re-write repetitive chunks of the code in the previous section as functions: __Should functions be made generic to accept any column name etc?__
+For each loop, sampling will be done using the `sample_n` command from the `tidyverse` package. Before we do the sampling however, let us re-write repetitive chunks of the code in the previous section as functions: 
 
 ```{r functions}
 
 get_inc <- function(df) {
   
   # function to summarise cost and utility differences by arm
-  # Argument: df (dataframe, eg df_analysis)
+  # Argument: df (dataframe, e.g. df_analysis)
   # Here, the dataframe must contain "arm" with values 1 & 0, "cost_disc" and "qaly_disc" columns
-  # However all that can be parameterised
+  # However all that can be parameterised to create a more flexible function
   df_inc <- df %>%
     # produce summary statistics by the treatment arm variable
     group_by(arm) %>%
@@ -212,12 +212,12 @@ get_nb <- function(df_inc, r) {
 
 ```
 
-We are now ready to generate the bootstrap dataset __change n_sim to 1000 at a later stage perhaps__
+We are now ready to generate the bootstrap dataset.
 
 ```{r bootstrap}
 
 # number of simulations
-n_sim <- 100
+n_sim <- 200
 
 # initialise output dataset
 df_boot <- NULL
@@ -240,9 +240,9 @@ head(df_boot, 3)
 
 ```
 
-_Note_ The above calculations are performed in a sequential loop but are independent of each other. It is therefore possible to parallelise the code, e.g. using the [`foreach` package](https://cran.r-project.org/web/packages/foreach/vignettes/foreach.html).
+_Note_ The above calculations are performed in a sequential loop but are independent of each other. It is therefore possible to parallelise the code, e.g. using the [`foreach` package](https://cran.r-project.org/web/packages/foreach/vignettes/foreach.html.
 
-Having bootstrapped the dataset, we are ready to calculate the net monetary benefit. We will want to construct the cost-effectiveness acceptability curve, and therefore we will calculate the NMB for a range of thresholds.
+Having bootstrapped the dataset, we are ready to calculate the net monetary benefit. We will want to construct the cost-effectiveness acceptability curve, and therefore we need to calculate the NMB for a range of thresholds.
 
 ```{r nbBoot}
 
@@ -257,12 +257,12 @@ head(df_boot, 3)
 
 ```
 
-For the percentile method of calculating 95% confidence intervals, we need to order the vector with the outcome of interest (eg the 1,000 cost differences in treatment arm) and take the 25th and 975th values. Since this is likely going to be needed more than once, it may be efficient to turn this process into a function:
+For the percentile method of calculating 95% confidence intervals, we need to order the vector with the outcome of interest (e.g. the 1,000 cost differences in treatment arm) and take the 25th and 975th values. Since this is likely going to be needed more than once, it may be efficient to turn this process into a function:
 
 ```{r bootstrapCI}
 
 # Function: get confidence interval from a vector using a percentile method
-# Arguments: vector with outcomes (vec; eg cost_delta_0); confidence level (level; optional argument with default value of 0.95)
+# Arguments: vector with outcomes (vec; e.g. cost_delta_0); confidence level (level; optional argument with default value of 0.95)
 get_bootstrap_ci <- function(vec, level = 0.95) {
   # order the vector
   vec <- sort(vec)
@@ -311,7 +311,6 @@ for (colname in colnames(df_inc)) {
 df_inc_with_ci
 
 ```
-__Re-write using pivot_longer and automatic re-naming? Or is that too advanced?__
 
 As the last step, let us plot the bootstrap estimates on the the cost-effectiveness plane.
 
@@ -328,6 +327,8 @@ p <- ggplot(df_boot, aes(x = qaly_inc, y = cost_inc)) +
 p
 
 ```
+
+_Note._ For the sake of completeness, the bootstrapping in this section was done using only `tidyverse` commands. However, the reader may wish to explore purpose-built bootstrapping packages, such as [boot](https://cran.r-project.org/web/packages/boot/index.html), which could be useful for simple procedures. 
 
 ### Cost-effectiveness acceptability curve
 
