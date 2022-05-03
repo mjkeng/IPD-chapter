@@ -1,32 +1,50 @@
+
+
 ## Bayesian analysis 
 
 ```{r}
 library(rjags)
 data <- read.csv("data/10TT_synth_280921.csv")
-```
+set.seed(301031)
 
-We will need to model that data parametrically, so we begin by examining the distributions of cost and QoL scores
-```{r}
-par(mfrow=c(2,2))
-hist(data$totalcost)
-qqnorm(data$totalcost)
-qqline(data$totalcost)
-hist(log(data$totalcost))
-qqnorm(log(data$totalcost))
-qqline(log(data$totalcost))
+# adjusted analysis
+# clean up jags code
+# cross-check my Bayesian model with missing data chapter
+
+# flesh out text
+
 ```
-A log transform seems to work well, so we log-transform the costs
+## Bayesian estimation
+Bayesian approaches to health technology assessment have proven popular [@Cooper2013], in part due to their ability to account for multiple sources of uncertainty [@Spiegelhalter2003]. A key difference between the Bayesian and frequentist approaches is that in the Bayesian approach parameters of interest are treated as random variables, so that interest centres on quantifying their distributions rather than in point estimates and confidence intervals. In fact, the CEAC is an inherently Bayesian concept [ref]. To quantify the distribution $f$ of a parameter $\theta$, we first describe our beliefs about the distribution of the parameter before seeing the data (the prior, which we denote $\pi(\theta)$), then describe the distribution of the data as a function of the parameter (the likelihood, denoted $L(data\mid\theta)$). Applying standard results on conditional probability, we then have $f(\theta\mid data)\propto L(data\mid\theta)\pi(\theta)$ (Bayes' Theorem). The distribution $f(\theta\mid data)$ of parameter $\theta$ after seeing the data is known as the posterior.
+
+In many cases, the unknown parameter $\theta$ used in the likelihood is multi-dimensional, and closed-form expressions for the posterior distribution are not available. Most practical analyses use Gibbs sampling, a form of Markov Chain Monte Carlo (MCMC), to take random samples from the posterior distribution of $\theta$. This works as follows. Suppose $\theta$ is $p$-dimensional with $\theta = (\theta_1,\theta_2,\ldots,\theta_p)$. The Gibbs sampler then samples $\theta_1$ from the posterior distribution given the data and the current values of $\theta_2,\ldots,\theta_p$, then samples $\theta_2$ from its posterior distribution given the data, the newly sampled value of $\theta_1$ and the current values of $\theta_3,\ldots,\theta_p$. This continues until all $p$ elements of $\theta$ have been sampled, at which point we have completed one iteration of the Markov Chain. The sampling is then repeated. The stationary distribution of the resulting Markov Chain is the posterior distribution of $\theta$ given the data. Thus if we run the Markov chain until it has converged, we will be sampling from our desired posterior distribution.
+
+From the above description, it is apparent that in order to execute a Bayesian analysis, we must specify (a) our prior beliefs about any unknown parameters, (b) the likelihood of the data given these parameters, (c) initial values for the Gibbs sampler. We must then run the sampler until convergence, at which point we can take samples from our desired posterior distribution. 
+
+There are several ways to implement MCMC in R. In this chapter we will use the `rjags` [@Plummer2021] package to interface with JAGS [@Plummer2003]. We use the 10TT dataset to illustrate each of these steps.
+
+
+### Parametric Models
+Bayesian analysis requires a fully parametric model for the data, so we begin by examining the distributions of cost and QoL scores. As noted above, the cost data is right skewed. However, the Normal distribution is a good approximation to the distribution of the log costs.
 ```{r}
 data$log_totalcost <- log(data$totalcost)
-```
-We now consider the QoL scores
-```{r}
-par(mfrow=c(2,6))
-hist(data$qol_0);hist(data$qol_3);hist(data$qol_6);hist(data$qol_12);hist(data$qol_18);hist(data$qol_24)
-qqnorm(data$qol_0); qqline(data$qol_0);qqnorm(data$qol_3); qqline(data$qol_3);qqnorm(data$qol_6); qqline(data$qol_6);qqnorm(data$qol_12); qqline(data$qol_12);qqnorm(data$qol_18); qqline(data$qol_18);qqnorm(data$qol_24); qqline(data$qol_24)
+par(mfrow=c(1,2))
+hist(data$log_totalcost)
+qqnorm(data$log_totalcost)
+qqline(data$log_totalcost)
+
 ```
 
-The main departure from Normality is a chunk of observations at the upper bound of 1. We will handle this through a truncated Normal distribution. We first set up a matrix of QoL scores, with one row for each patient and one column for each time point. We then create a matrix recording whether each observation is at the upper bound. The truncated observations are then set to missing.
+
+
+We now consider the QoL scores. The distributions are similar at each time point, so we plot just the first.
+```{r}
+par(mfrow=c(1,2))
+hist(data$qol_0)
+qqnorm(data$qol_0); qqline(data$qol_0)
+```
+
+The main departure from Normality is a chunk of observations at the upper bound of 1. If we assume that the quality of life scores follow a truncated Normal, then we have $P(QOL<x)= \Phi((x-\mu)/\sigma)$ if $x<1$ and $P(QOL=1) = 1-\Phi((1-\mu)/\sigma)$. To model this in JAGS we first model the QoL measures as a censored Normal, then back-transform the results to a truncated normal. To do this, we set up a matrix of QoL scores, with one row for each patient and one column for each time point. We then create a matrix recording whether each observation is at the upper bound. The truncated observations are then set to missing.
 
 ```{r}
 QOL <- cbind(data$qol_0,data$qol_3,data$qol_6,data$qol_12,data$qol_18,data$qol_24)
@@ -35,7 +53,7 @@ for(j in 1:6) QOL[QOL[,j]==1,j] <- NA
 ```
 
 
-
+### Data preparation
 We stratify the data by treatment arm
 ```{r}
 Outcomes0 <- cbind(data$log_totalcost,QOL)[data$arm==0,]
@@ -56,29 +74,100 @@ Outcomes_inits0 <- cbind(rep(NA,nrow(Outcomes0)),QOL_inits0)
 Outcomes_inits1 <- cbind(rep(NA,nrow(Outcomes1)),QOL_inits1)
 ```
 
-We will implement the Bayesian approach by modelling the log costs and six (untruncated) QoL scores as a multivariate Noraml. We then back-transform to recover the estimated mean costs and mean QoL scores with truncation at 1 Before running the JAGS model, we first specify the initial values (jags.inits) and the data (jags.data). The code for the model itself is in jags.script.txt, and is run using jags.model. 
-
-```{r comment=''}
-cat(readLines('jags.script.txt'), sep = '\n')
-```
+We will implement the Bayesian approach by modelling the log costs and six (untruncated) QoL scores as a multivariate Normal. We then back-transform to recover the estimated mean costs and mean QoL scores with truncation at 1. Since the multivariate Normal is not available in the presence of censoring or trunaction, we code the multivariate Normal as a series of conditional Normals. Specifically, we begin by specifying a Normal distribution for the log costs, then derive the distribution of the baseline QOL scores conditionally on the log costs, the 3-month QOL scores conditionally on the log costs and baseline QOL scores, and so on. Recall that if two vectors $Z_1$, $Z_2$ are jointly multivariate Normal with mean $\mu=(\mu_1^\prime,\mu_2^\prime)^\prime$ and variance-covariance matrix $\Sigma=\left(\begin{array}{2} \Sigma_{11} & \Sigma_{12}\\ \Sigma_{21} & \Sigma_{22}\end{array}\right)$, then $Z_1\mid Z_2 \sim MVN(\mu_1 + \Sigma_{12}\Sigma_{22}^{-1}(Z_2 - \mu_2),\Sigma_{11}-\Sigma_{12}\Sigma_{22}^{-1}\Sigma_{21})$. In the interests of clarity of the JAGS code this Bayesian analysis does not adjust for age, sex, or QoL at baseline, but code for doing so is available in the Appendix.
 
 
-We begin with a burn-in of 1000 iterations then run 1000 further iterations and take a look at the sampled values.
+### Priors
+Bayesian models require specification of priors for unknown parameters. Priors are context-specific; there is no one prior that will work in every example. We therefore offer our rationale for our choices in the anticipation that it is this, rather than the priors themselves, that may be useful to our readers. In this example, we work with vague priors, using Normal priors for the means since these are conjugate priors. Measures of QoL are bounded above at 1 and values of 0 represent a QoL equivalent to that of being dead. This trial includes community-dwelling patients and therefore most individuals will have QoL between -1 and 1. A prior belief that the \textit{mean} QoL score for any timepoint lies between 0 and 1 95\% of the time thus represents a vague prior; this corresponds to a Normal distribution with mean 0.5 and standard deviation 0.25. JAGS specifies Normal distributions in terms of mean and precision, rather than mean and standard deviation, where precision is the reciprocal of the variance, thus these priors appear as N(0.5,16) in the JAGS code. The prior for the log cost is harder to specify as costs have no theoretical upper bound, however a Normal distribution with mean 10 and standard deviation 10 represents a prior belief that there is a 95\% probability that mean costs lie between $7\times 10^{-5}$ and  $7\times 10^{12}$ GBP and a 50\% probability that mean costs lie between $26$ and $19,000000$ GBP, which represents more uncertainty than most users would entertain.
 
-```{r}
+Turning now to the priors for the variance parameters, note that we must specify a prior for the variance-covariance matrix $\Sigma$ rather than just the variances of the costs and QOL. We follow Lu \& Ades [@Lu2009] in using a spherical decomposition $\Sigma = V^{1/2}LL^\prime V^{1/2}$, where $V$ is a diagonal matrix of variances and $L$ is an upper-triangular matrix chosen so $LL^\prime$ has ones along the diagonal, thus representing a matrix of correlations. Lu \& Ades show how to select the components of $L$ such that the correlations of any pair of components are drawn from a Uniform(-1,1) distribution, which is the approach we take here. For the diagonal component, which represents variances, we use a Gamma(1,1) distribution. This represnts a prior belief that variances lie within the range of 0.025 to 3.7 with 95\% probability, which is clearly vague for the QoL scores. For the costs, we consider the impact on the implied distribution of individual costs of variances of 0.025 and 3.7: fixing the mean of the log-normal at the prior mean of 10, at a variance of 0.025 individual costs would lie in the range of 16,000 to 30,000 with 95\% probability, while at a variance of 0.975 individual costs would lie in the range of 510 to 960,000 with 95\% probability. This again represents adequate uncertainty.
+
+### Runnings JAGS from R
+The code for the JAGS model is saved in a separate text file, `jags.script.txt` in this example.
+
+Before running the model we set initial values using `jags.inits`, and specify the data using `jags.data`. The model is set up and initalized using `jags.model`, then updates are run using `update`. We begin with a burn-in of 50,000 iterations.
+
+```{r,cache=FALSE,eval=FALSE}
 jags.inits <- list(Outcomes0=Outcomes_inits0,Outcomes1=Outcomes_inits1)
 
 jags.data <- list(Outcomes0=Outcomes0,Outcomes1=Outcomes1,n0=nrow(Outcomes0),n1=nrow(Outcomes1),Upper_0=Upper0,Upper_1=Upper1)
 model <- jags.model("jags.script.txt", data=jags.data, inits=jags.inits, n.chains=1)
 
-update(model, n.iter=1000)
+update(model, n.iter=50000)
 
-samples <- coda.samples(model, variable.names=c("cost_0_mean","qol_tot_0_mean","cost_1_mean","qol_tot_1_mean","incr_qol_tot","incr_cost_tot","ICER"),n.iter=1000)
-summary(samples)
+
+
+```
+### Checking convergence
+Before looking at any results we need to check whether there is any evidence of non-convergence. This needs to be done carefully as successive samples from the Markov Chain are correlated. A number of diagnostics exist, each of which examines a different aspect of non-convergence. Since no diagnostic can prove that convergence has occurred, but rather looks for evidence of non-convergence, it is recommended to use a number of diagnostics [@Cowles1996]. Here we use the Geweke [@Geweke1992], Raftery-Lewis [@Raftery1992] and Heidelberger-Welch [@Heidelberger1993] tests. The Geweke diagnostic (`geweke.diag`) examines whether the mean of the draws from the first `frac1` iterations of the chain is the same as the mean from the last `frac2` draws from the chain; `frac1` and `frac2` are specified by the user and default to the first 10% and the last 50%.  The Raftery-Lewis diagnostic (`raftery.diag`) assesses whether the quantile `q` can be estimated to a precision of `r` with confidence `p`, and thus assesses both whether the burn-in is sufficient and also whether the post burn-in run length is sufficient for the desired Monte Carlo error. The Heidelberger-Welch diagnostic (`heidel.diag`) examines stationarity of the sample mean as well as the accuracy of the estimate of the mean relative to the width of its confidence interval. Specifically, the diagnostic first uses a Cramer-von-Mises statistic to test whether the mean of the first 10% of the interations is equal to the mean of the whole run; if this is rejected then the first 10% are discarded and the test is repeated on the next 10%. This is repeated until either the hypothesis of equality is not rejected (in which case the test is based and the portion of the chain to be discarded is indicated through "start iteration" on the output), or until half the iterations have been discarded, in which case the test marked as failed. The halfwidth test finds a 95% confidence interval for the mean based on the portion of the chain that passed the test, then computes the ratio of half the width of this confidence interval to the estimated mean. The test is marked as passed if this ratio is smaller than a user-specified value `eps` (defaults to 0.1).
+
+We draw 1000 samples from the chain using `coda.samples`. The arguments in variable names specify which nodes should be saved in the object `samples`. When there are a large number of parameters it can be helpful to monitor a subset to avoid high type I error error rates, and so we monitor the key parameters of interest as well as a few of the variance-covariance parameters.
+
+```{r,cache=FALSE,eval=FALSE}
+samples <- coda.samples(model, variable.names=c("phi0[3,1]","phi0[6,4]","phi1[2,1]","phi1[4,2]","sigma0[1]","sigma0[4]","sigma1[2]","sigma1[7]","cost_0","qaly_0","cost_1","qaly_1","qaly_inc","cost_inc"),n.iter=1000)
+dput(samples,"samples0.Rdata")
+```
+
+```{r,echo=FALSE}
+samples <- dget("samples0.Rdata")
+```
+
+```{r}
+print("Geweke Diagnostic"); geweke.diag(samples,frac1=0.1,frac2=0.5)
+print("Raftery-Lewis Diagnostic, 2.5th percentile"); raftery.diag(samples,r=1,q=0.025)
+print("Raftery-Lewis Diagnostic, 97.5th percentile");raftery.diag(samples,r=1,q=0.975)
+print("Heidelberger-Welch Diagnostic"); heidel.diag(samples)
 ```
 
 
+These diagnostics show no evidence of non-convergence and also suggest that the Monte Carlo error is small enough to report results to the nearest whole number. The autocorrelation plots suggest that autocorrelation is close to zero at lags of 20 or more. 
 
 
+### Bayesian Results
+We are now in a position to examine the posterior distributions of our quantities of interest. We run some more updates, thinning the chain to one in every 20 samples so as to achieve minimal autocorrelation in our sampled values. This will be important for the plots that follow.
+```{r,eval=FALSE}
+samples2 <- coda.samples(model, variable.names=c("cost_0","qaly_0","cost_1","qaly_1","qaly_inc","cost_inc"),n.iter=4000,thin=20)
+dput(samples2,"samples2.Robject")
+```
+```{r,echo=FALSE}
+samples2 <- dget("samples2.Robject")
+```
+```{r}
+summary(samples2)
+samples2[[1]][1:10,]
+```
 
+These results indicate that the incremental cost has posterior mean 560 GBP with 95\% Credible Interval (CrI) 55 to 1100 GBP, and that the incremental QALYs have posterior mean -0.04 with 95\% CrI -0.08 to -0.005. Further, we have a sample of 200 roughly independent draws from the joint posterior distribution of the incremental costs and incremental QALYs, which we can visualize on the cost-effectiveness plane:
 
+```{r}
+results <- as.data.frame(cbind(samples2[[1]][,3],samples2[[1]][,6]))
+names(results) <- c("Incremental_Costs","Incremental_QALYs")
+plot(results$Incremental_QALYs,results$Incremental_Costs,ylim=c(-2000,2000),xlim=c(-0.3,0.3),pch=16,xlab="Incremental QALYs",ylab="Indremental Costs")
+segments(0,-3000,0,3000); segments(-0.4,0,0.4,0)
+```
+
+We can also compute the Incremental Net Benefit at a threshold of 30,000 GBP/QALY:
+
+```{r}
+lambda <- 30000
+results$INB <- lambda*results$Incremental_QALYs - results$Incremental_Costs
+hist(results$INB)
+qqnorm(results$INB)
+qqline(results$INB)
+INB.est <- mean(results$INB)
+INB.se <- sd(results$INB)
+INB.CrI <- c(INB.est-1.96*INB.se,INB.est+1.96*INB.se)
+paste("INB estimate=",round(INB.est))
+paste("95% CrI for INB: (", round(INB.CrI[1]),", ",round(INB.CrI[2]),")",sep="")
+```
+
+Finally, we compute the CEAC:
+```{r}
+lambda <- (1:10000)*10
+INB <- sweep(outer(results$Incremental_QALYs,lambda,"*"),1,results$Incremental_Costs,"-")
+Prob.CostEffective <- apply(INB>0,2,mean)
+summary(apply(INB,2,mean)); summary(Prob.CostEffective)
+plot(lambda,Prob.CostEffective,xlab="Willingness-to-Pay Threshold (GBP)",ylab="Probability of Trating Being Cost-Effective",type="l",ylim=c(0,1))
+```
+
+These results are qualitatively similar to the frequentist results, but the numbers themselves differ. There are two reasons for this. Firstly, the Bayesian analyses have made modelling assumptions around the distributions of the patient-level costs and QALYs. We note that many HTA agencies recommend examining sensitivity to modeling assumptions [@CADTH2006,@NICE2013], and so it is in fact a strength to have made different assumptions in the Bayesian and frequentist analyses. Secondly, while the frequentist analyses used complete cases only, the Bayesian analyses have specified a distribution for the missing data, which has allowed them to use all the data. The next chapter will delve into the handling of missing data in more detail.
