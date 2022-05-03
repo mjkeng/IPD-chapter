@@ -6,6 +6,8 @@ output:
   bookdown::html_document2:
     toc: true
     toc_float: true
+  bookdown::pdf_document2: 
+    toc: true
 bibliography: [references.bib, packages.bib]
 editor_options: 
   chunk_output_type: console
@@ -22,7 +24,6 @@ knitr::write_bib(c('tableone', 'qwraps2', 'DescTools'), 'packages.bib')
 
 
 # Introduction 
-
 
 Analysis using individual patient data comes with the benefits afforded by the type of analysis that can be performed, and the ability to capture patient heterogeneity. 
 However, there are practical and methodological challenges involved. 
@@ -71,7 +72,7 @@ We will perform a within-trial cost-utility analysis to compare the costs and ou
 The primary outcomes are incremental costs and effects and the incremental net monetary benefit (NMB) of 10TT versus usual care over the 2-year trial follow-up period.
 Because of the short duration of the trial, no discounting will be applied. 
 We consider cost-effectiveness thresholds of £20,000 and £30,000.
-For the purpose of this chapter, we will be performing a complete case analysis so missing data will be excluded (more details on handling of missing data is available in the missing data chapter [@ref]). 
+For the purpose of this chapter, we will be performing a complete case analysis so missing data will be excluded (more details on handling of missing data is available in the missing data chapter). 
 
 
 ## Descriptive statistics 
@@ -121,7 +122,7 @@ tableone::CreateTableOne(vars = c("sex", "age", "bmicat"), strata = "arm", data 
 
 ### Utilities & QALYs
 
-Participants completed the EQ-5D-3L questionnaire during study visits at baseline, and at 3, 6, 12, 18 and 24 months. These responses were mapped onto utility scores based on the UK tariffs [@addref21] (labelled `qol_X`, where `X` is the month of measurement).
+Participants completed the EQ-5D-3L questionnaire during study visits at baseline, and at 3, 6, 12, 18 and 24 months. These responses were mapped onto utility scores based on the UK tariffs [@dolan_modeling_1997] (labelled `qol_X`, where `X` is the month of measurement).
 
 ```{r}
 
@@ -232,46 +233,35 @@ df_qol_analysis <- df_qol %>%
 Data on healthcare resource use were extracted from general practitioner (GP) records over the 2-year study period, and costs were measured from a healthcare perspective. 
 These include cost of GP visits (number of GP visits`gpvis` * £45/GP visit), cost of intervention (`costint` £22.90 for 10TT intervention), and cost of other healthcare resource use such as secondary care and practice nurse visits (`costoth`). 
 
+---
+
+Extra notes 
+
+The dataset already contains the variable total cost `totalcost`. We can do a quick check to see if this has been calculated correctly. 
+
+```{r}
+
+all.equal(df$gpvis * 45 + df$costint + df$costoth, df$totalcost)
+
+```
+
+---
+
 ```{r}
 
 ## Example of cost data
 
-df_cost <- df %>% 
-  select(id, arm, gpvis, contains("cost")) 
-
-head(df_cost, 3)
-
-```
-
-
-```{r}
-
-df_cost_analysis <- df_cost %>% 
+df_cost_analysis <- df %>% 
   select(id, totalcost) %>% 
   rename(cost = totalcost)
 
 ```
 
----
-
-Extra notes 
-
-The dataset already contains the varaible total cost `totalcost`. We can do a quick check to see if this has been calculated correctly. 
-
-```{r}
-
-all.equal(df_cost$gpvis * 45 + df_cost$costint + df_cost$costoth, df_cost$totalcost)
-
-```
-
----
-
-
-```{r, fig.cap= "Distribution of cost"}
+```{r, fig.cap= "Distribution of total cost"}
 
 ggplot(data = df_cost_analysis) + 
   geom_histogram(aes(x = cost), binwidth = 250) + 
-  labs(x = "Cost")
+  labs(x = "Total cost (£)")
 
 ```
 
@@ -321,8 +311,8 @@ ggExtra::ggMarginal(p, groupColour = T, groupFill = T, alpha = 0.25)
 ```
 
 
-<!-- ```{r child = 'bayesian.Rmd'} -->
-<!-- ``` -->
+```{r child = 'bayesian.Rmd'}
+```
 
 
 ### References 

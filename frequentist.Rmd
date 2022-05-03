@@ -332,7 +332,7 @@ _Note._ For the sake of completeness, the bootstrapping in this section was done
 
 ### Cost-effectiveness acceptability curve
 
-As it happens, almost all points in the cost-effectiveness place lie in the north-east quadrant, i.e. the 10TT intervention is both more costly and less effective. Let us quantify this effect by constructing the cost-effectiveness acceptability curve.
+As it happens, almost all points in the cost-effectiveness plane lie in the north-east quadrant, i.e. the 10TT intervention is both more costly and less effective. Let us quantify this effect by constructing the cost-effectiveness acceptability curve.
 
 We will use the `df_boot` dataset for this purpose. First, we need to assess whether each entry in this dataset (i.e. each simulation / threshold combination) is cost-effective:
 
