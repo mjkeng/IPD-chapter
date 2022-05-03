@@ -6,8 +6,6 @@ output:
   bookdown::html_document2:
     toc: true
     toc_float: true
-  bookdown::pdf_document2: 
-    toc: true
 bibliography: [references.bib, packages.bib]
 editor_options: 
   chunk_output_type: console
