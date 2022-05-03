@@ -105,11 +105,11 @@ We draw 1000 samples from the chain using `coda.samples`. The arguments in varia
 
 ```{r,cache=FALSE,eval=FALSE}
 samples <- coda.samples(model, variable.names=c("phi0[3,1]","phi0[6,4]","phi1[2,1]","phi1[4,2]","sigma0[1]","sigma0[4]","sigma1[2]","sigma1[7]","cost_0","qaly_0","cost_1","qaly_1","qaly_inc","cost_inc"),n.iter=1000)
-dput(samples,"samples0.Rdata")
+dput(samples,"data/samples0.Rdata")
 ```
 
 ```{r,echo=FALSE}
-samples <- dget("samples0.Rdata")
+samples <- dget("data/samples0.Rdata")
 ```
 
 ```{r}
@@ -127,10 +127,10 @@ These diagnostics show no evidence of non-convergence and also suggest that the 
 We are now in a position to examine the posterior distributions of our quantities of interest. We run some more updates, thinning the chain to one in every 20 samples so as to achieve minimal autocorrelation in our sampled values. This will be important for the plots that follow.
 ```{r,eval=FALSE}
 samples2 <- coda.samples(model, variable.names=c("cost_0","qaly_0","cost_1","qaly_1","qaly_inc","cost_inc"),n.iter=4000,thin=20)
-dput(samples2,"samples2.Robject")
+dput(samples2,"data/samples2.Robject")
 ```
 ```{r,echo=FALSE}
-samples2 <- dget("samples2.Robject")
+samples2 <- dget("data/samples2.Robject")
 ```
 ```{r}
 summary(samples2)
@@ -142,7 +142,7 @@ These results indicate that the incremental cost has posterior mean 560 GBP with
 ```{r}
 results <- as.data.frame(cbind(samples2[[1]][,3],samples2[[1]][,6]))
 names(results) <- c("Incremental_Costs","Incremental_QALYs")
-plot(results$Incremental_QALYs,results$Incremental_Costs,ylim=c(-2000,2000),xlim=c(-0.3,0.3),pch=16,xlab="Incremental QALYs",ylab="Indremental Costs")
+plot(results$Incremental_QALYs,results$Incremental_Costs,ylim=c(-2000,2000),xlim=c(-0.3,0.3),pch=16,xlab="Incremental QALYs",ylab="Incremental Costs")
 segments(0,-3000,0,3000); segments(-0.4,0,0.4,0)
 ```
 
